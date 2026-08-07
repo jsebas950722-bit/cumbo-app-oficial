@@ -3,5 +3,16 @@ project_id = "cumbo-app"
 [db]
 port = 54322
 
+# Por defecto, TODAS las funciones exigen una sesión válida de Supabase.
+# Los webhooks de las pasarelas de pago son la única excepción real:
+# Mercado Pago y Wompi no tienen ni pueden tener una sesión de Cumbo,
+# así que se desactiva la verificación solo para esas dos — el resto
+# (crear-preferencia-pago, crear-pago-wompi) SIEMPRE exige sesión.
 [functions]
+verify_jwt = true
+
+[functions.webhook-mercadopago]
+verify_jwt = false
+
+[functions.webhook-wompi]
 verify_jwt = false

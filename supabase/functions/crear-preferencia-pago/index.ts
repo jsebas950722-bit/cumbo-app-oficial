@@ -29,6 +29,17 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Falta pedido_id' }), { status: 400, headers: corsHeaders });
     }
 
+    // Identificamos QUIÉN llama (no solo que tenga una sesión válida —
+    // eso ya lo exige verify_jwt=true en config.toml — sino de quién es
+    // esa sesión), usando su propio token, no la service role key.
+    const supabaseComoUsuario = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: req.headers.get('Authorization')! } },
+    });
+    const { data: { user }, error: errUsuario } = await supabaseComoUsuario.auth.getUser();
+    if (errUsuario || !user) {
+      return new Response(JSON.stringify({ error: 'Sesión inválida' }), { status: 401, headers: corsHeaders });
+    }
+
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
     // Traemos el pedido con sus items reales — el precio que se cobra es
@@ -42,6 +53,13 @@ Deno.serve(async (req) => {
 
     if (errPedido || !pedido) {
       return new Response(JSON.stringify({ error: 'Pedido no encontrado' }), { status: 404, headers: corsHeaders });
+    }
+
+    // Defensa en profundidad: aunque haga falta sesión válida, esa
+    // sesión tiene que ser DUEÑA del pedido — si no, cualquier usuario
+    // logueado podría generar un link de pago para el pedido de otro.
+    if (pedido.cliente_id !== user.id) {
+      return new Response(JSON.stringify({ error: 'Este pedido no te pertenece' }), { status: 403, headers: corsHeaders });
     }
 
     const items = (pedido.pedido_items || []).map((it: any) => ({

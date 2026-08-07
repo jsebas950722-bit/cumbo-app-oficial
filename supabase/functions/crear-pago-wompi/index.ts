@@ -36,11 +36,26 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Falta pedido_id' }), { status: 400, headers: corsHeaders });
     }
 
+    // Identificamos QUIÉN llama, usando su propio token — no la service
+    // role key. Igual que en crear-preferencia-pago: verify_jwt=true ya
+    // exige sesión válida, pero acá confirmamos que sea DUEÑA del pedido.
+    const supabaseComoUsuario = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
+      global: { headers: { Authorization: req.headers.get('Authorization')! } },
+    });
+    const { data: { user }, error: errUsuario } = await supabaseComoUsuario.auth.getUser();
+    if (errUsuario || !user) {
+      return new Response(JSON.stringify({ error: 'Sesión inválida' }), { status: 401, headers: corsHeaders });
+    }
+
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
-    const { data: pedido, error: errPedido } = await supabase.from('pedidos').select('id, total').eq('id', pedido_id).single();
+    const { data: pedido, error: errPedido } = await supabase.from('pedidos').select('id, total, cliente_id').eq('id', pedido_id).single();
     if (errPedido || !pedido) {
       return new Response(JSON.stringify({ error: 'Pedido no encontrado' }), { status: 404, headers: corsHeaders });
+    }
+
+    if (pedido.cliente_id !== user.id) {
+      return new Response(JSON.stringify({ error: 'Este pedido no te pertenece' }), { status: 403, headers: corsHeaders });
     }
 
     // Wompi cobra en centavos — $45.000 COP = 4500000.
