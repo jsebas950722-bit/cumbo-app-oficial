@@ -1,0 +1,86 @@
+:root {
+  /* Identidad de marca (se mantiene) */
+  --cafe-oscuro: #926137;
+  --tierra-kraft: #c79c67;
+  --canela-oscuro: #693c23;
+  --crema-papel: #f2efe9;
+  --verde-cumbre: #3d5a33;
+  --marron-tinta: #2d1b0d;
+  --carbon-cafe: #3b2a1e;
+
+  /* Redise\u00f1o: fondo m\u00e1s claro y neutro (estilo Rappi/MercadoLibre) */
+  --fondo-calido: #faf8f4;
+  --superficie: #ffffff;
+  --borde-suave: rgba(146, 97, 55, 0.15);
+
+  /* Color de acci\u00f3n vibrante: para CTAs, badges activos, bot\u00f3n "+" */
+  --accion: #926137;
+  --accion-suave: #eee7e1;
+
+  /* Estados semánticos reutilizados en toda la app */
+  --exito: var(--verde-cumbre);
+  --alerta: var(--canela-oscuro);
+  --pendiente: var(--tierra-kraft);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  overflow-x: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, Helvetica, sans-serif;
+  background: var(--fondo-calido);
+}
+
+#root {
+  min-height: 100vh;
+}
+
+input,
+select,
+textarea {
+  font-family: inherit;
+  outline: none;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  border-color: var(--cafe-oscuro);
+}
+
+a {
+  color: var(--cafe-oscuro);
+}
+
+a:hover {
+  color: var(--canela-oscuro);
+}
+
+.cumbo-btn {
+  transition: all 0.15s ease;
+}
+
+.cumbo-btn:hover {
+  filter: brightness(0.95);
+}
+
+.cumbo-btn:active {
+  transform: scale(0.98);
+}
+
+.cumbo-tab {
+  transition: all 0.15s ease;
+  cursor: pointer;
+}
+
+.cumbo-card {
+  transition: transform 0.15s ease;
+}
+
+.cumbo-card:active {
+  transform: scale(0.98);
+}

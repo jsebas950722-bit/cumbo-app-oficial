@@ -1,0 +1,471 @@
+# Cumbo — App real (las 13 pantallas del handoff migradas)
+
+## Qué es esto
+Proyecto React + Vite listo para empaquetar con Capacitor (iOS/Android),
+conectado a Supabase. Cada pantalla del handoff original fue migrada
+del prototipo (`.dc.html`) a un componente React real, conectado a datos
+reales — no a los arrays de ejemplo ni al localStorage del prototipo.
+
+Pantallas migradas:
+- **Ingreso** (login/registro) — autenticación real de Supabase, ya no
+  simulada con localStorage como en el prototipo.
+- **Ecosistema** (home) — hub de navegación real con react-router (antes
+  eran archivos `.html` sueltos enlazados con `<a href>`). Header con menús
+  Cumbo/Afiliados, carrusel de video, tarjetas a cada módulo, FAQ y barra
+  inferior. El badge del carrito ya es real (viene de CarritoContext).
+- **Marketplace** — catálogo real desde Supabase (café de finca, métodos
+  de preparación por marca/calidad, accesorios), carrito compartido con
+  el resto de la app, y checkout que crea filas reales en `pedidos` +
+  `pedido_items` + un evento en `eventos_log`.
+  **Pendiente en Marketplace** (a propósito, sin pago real conectado
+  todavía): el cobro efectivo con la pasarela (Wompi/ePayco/PayU — Art. 29
+  de la Constitución), el correo de confirmación, y la calculadora de
+  molienda por varietal/nota de sabor del prototipo.
+
+- **Sommelier** — quiz de 5 preguntas para descubrir tu perfil de sabor
+  entre las 11 regiones cafeteras, calculadora de ratio café/agua por
+  método (con ajuste por varietal y nota de sabor), y ficha completa de
+  cada región. El perfil calculado se guarda en `usuarios.perfil_sabor`
+  en Supabase (antes solo en localStorage), y los "productos
+  recomendados" se buscan en el catálogo real del Marketplace filtrando
+  por región — si aún no hay café de esa región, se lo dice honestamente
+  en vez de mostrar datos inventados.
+  **Nota sobre voz:** Cumbito "habla" (texto a voz) funciona en iOS y
+  Android. El micrófono para responder hablando solo aparece si el
+  navegador/webview lo soporta — en iOS (WKWebView) todavía no existe esa
+  API, así que ahí se oculta en vez de mostrar un botón que no funciona.
+
+- **Portal Caficultor** — formulario real de alta de finca: datos
+  agronómicos, precio con validación contra referencia de mercado (+3%
+  de bono si está dentro de rango), estado del grano, certificación
+  (fotos + video, subidos de verdad a Supabase Storage), datos bancarios
+  y cédula. Al enviar: crea la finca (`estado: pendiente`, a la espera
+  de validación en Panel Cumbo), guarda los datos bancarios/identidad en
+  una tabla **separada** con RLS restringida (nunca se exponen en el
+  Marketplace), y le asigna el rol `caficultor` al usuario.
+  **Pendiente a propósito:** el simulador de tarifas de envío y el
+  rastreo de guía del prototipo — quedan para cuando migremos Logística.
+- **Panel Cumbo** — validación real de fincas pendientes (aprobar crea
+  automáticamente el producto de café en el Marketplace; rechazar la
+  descarta), gestión de pedidos con avance real de estado
+  (pendiente → confirmado → despachado → entregado), y KPIs contados de
+  verdad desde Supabase. Requiere que tu usuario tenga `rol = 'ceo'`
+  (ver instrucciones en `cumbo_schema_panel.sql`).
+  **Corrección importante:** ese archivo también arregla un bug que
+  encontré al construirlo — a `pedido_items` le faltaban las policies de
+  RLS, así que el checkout de Marketplace no podía insertar items desde
+  el navegador. Ya está corregido ahí.
+  **Deliberadamente fuera de esta pasada:** el modelador financiero
+  completo del prototipo (competencia de precios, estacionalidad,
+  ranking de marcas socias, specs de creativos, facturación DIAN) — es
+  una herramienta de inteligencia de negocio grande y separada que no
+  bloquea el flujo operativo.
+- **Trazabilidad** — muestra las fincas realmente validadas (las mismas
+  que ya aparecen en el Marketplace), con una cronología del proceso
+  (recolección → beneficio → secado → trilla → tueste). El prototipo
+  mostraba fechas exactas por paso como si estuvieran registradas una
+  por una; como eso no existe todavía en la base, se lo decimos
+  explícitamente y mostramos una **cronología estimada** a partir de la
+  fecha de recolección real, en vez de inventar precisión que no
+  tenemos. Si más adelante se quiere trazabilidad exacta por paso, el
+  candidato natural es extender `eventos_log` con eventos por lote.
+- **CRM Vendedor** — publicación real de productos de marca socia
+  (métodos de preparación y accesorios) conectada a Supabase, edición de
+  stock, eliminación, e historial de ventas real desde `pedido_items`.
+  **Corrección importante (otra vez el mismo tipo de bug):** a
+  `productos` le faltaban las policies de escritura — sin
+  `cumbo_schema_crm_vendedor.sql`, ni el vendedor podía publicar/editar
+  sus productos, ni Panel Cumbo podía crear el producto de café al
+  validar una finca. Ya está corregido.
+  **Deliberadamente fuera de esta pasada** (necesitan una función de
+  backend real con la API de Claude — el prototipo la llamaba directo
+  desde el navegador con `window.claude.complete`, algo que solo existe
+  en el entorno de prototipado): clasificación automática de calidad por
+  foto, generación automática de copy de venta, el embudo de contenido
+  de Cumbo Estudio (módulo aparte), y el comparador de tarifas de
+  transportadoras (Logística). Calidad y descripción se completan a mano
+  por ahora.
+- **Recetario** — las 12 recetas completas del prototipo (bebidas frías
+  y calientes, postres horneados y fríos), con filtro por categoría y
+  vista de detalle. Es contenido editorial tuyo, así que se quedó como
+  datos estáticos en el frontend — no hacía falta tabla en Supabase para
+  esto. Único cambio real: navegación con react-router.
+- **Comunidad** — publicaciones reales de caficultores desde Supabase
+  (tabla `publicaciones`), con likes persistentes de verdad (tabla
+  `publicaciones_likes`) — en el prototipo el like se perdía al
+  recargar la página porque solo vivía en memoria. Además, cualquier
+  usuario con rol `caficultor` puede publicar una actualización real
+  desde la propia pantalla (esto no existía en el prototipo).
+- **Directorio de Caficultores** — fincas realmente validadas con su
+  caficultor real. La "disponibilidad" ya no es un dato fijo de
+  ejemplo: se calcula del stock real del producto en el Marketplace
+  (stock > 0 → Disponible, stock = 0 → Agotado, sin producto todavía →
+  Próxima cosecha). Solo visible para el equipo Cumbo (`rol: 'ceo'`),
+  igual que Panel Cumbo — expone el WhatsApp personal de los
+  caficultores, así que no lo dejé abierto a cualquier usuario logueado.
+- **Logística** — la última pantalla. Gestión real de despachos: cuando
+  un pedido está `confirmado`, se puede elegir transportadora y escribir
+  la guía para marcarlo `despachado`, y de ahí a `entregado`. Las
+  alertas ya no son 3 ejemplos fijos: se leen de `eventos_log` en
+  tiempo real. El rastreo en vivo con la transportadora sigue pendiente
+  de definir — el botón de rastreo lleva al sitio oficial de cada una
+  (enlaces reales) mientras se decide con quién integrar de verdad.
+
+## Todas las pantallas del handoff están migradas (13/13)
+
+Ingreso, Ecosistema, Marketplace, Sommelier, Portal Caficultor, Panel
+Cumbo, Trazabilidad, CRM Vendedor, Recetario, Comunidad, Directorio de
+Caficultores y Logística. El ciclo completo funciona de punta a punta:
+un caficultor sube su finca → el CEO la valida → aparece en el
+Marketplace → un cliente la compra → logística la despacha → el CEO
+hace seguimiento del pedido y de la comunidad.
+
+## Bug importante corregido en esta pasada
+
+`eventos_log` — el log de auditoría inmutable — **nunca tuvo permiso de
+INSERT** desde que se creó en `cumbo_schema.sql`. El comentario original
+decía que se insertaría "desde funciones/backend", pero todas las
+pantallas construidas después (Marketplace, Portal Caficultor, Panel
+Cumbo, CRM Vendedor, Comunidad, Logística) insertan eventos directo
+desde el navegador. Sin la corrección en `cumbo_schema_logistica.sql`,
+esos inserts han estado fallando en silencio — tu log de auditoría real
+probablemente esté vacío o incompleto hasta que corras ese archivo.
+
+## Pago: se probó contraentrega, se descartó — vuelve pasarela online
+
+Se exploró adoptar pago contraentrega (COD), pero se descartó por el
+riesgo real de devoluciones/no-entrega (10-30% según referencias del
+sector logístico en Colombia) — Cumbo vuelve a pasarela online
+(ePayco/PayU/Mercado Pago, Art. 29 de la Constitución). El checkout de
+Marketplace volvió a tener selección de método de pago.
+
+**Lo único que quedó del experimento, porque valía la pena de todas
+formas:** el checkout ahora pide **dirección, ciudad y teléfono de
+entrega** — ese dato nunca había existido en el esquema, y hacía falta
+sin importar el método de pago (ningún pedido, pagado por adelantado o
+no, se puede despachar sin dirección).
+
+Si en algún momento corriste `cumbo_schema_contraentrega.sql`, corré
+después `cumbo_schema_revertir_contraentrega.sql` para quitar los
+campos específicos de contraentrega (`tipo_pago`, `estado_recaudo`,
+`monto_recaudado`, `agregador_logistico`) de la base — conserva
+dirección/ciudad/teléfono, que siguen siendo válidos. Si nunca corriste
+ese archivo, ignoralo, no hay nada que deshacer.
+
+## Rediseño de navegación (inspirado en Rappi/MercadoLibre/Didi)
+
+A pedido, se rediseñó la interfaz completa con el lenguaje visual de las
+apps líderes del sector — **sin quitar ninguna función existente**, solo
+reorganizando cómo se llega a cada una. Las 13 pantallas ya comparten el
+mismo lenguaje visual: header claro con ícono de volver (antes cada
+pantalla tenía un header oscuro de ancho completo), color de acción
+naranja (`--accion`) en botones y estados activos en vez del café oscuro
+para todo, e íconos reales de `lucide-react` en vez de emojis sueltos.
+
+- **`BottomNav.jsx`** (nuevo) — barra de navegación inferior persistente
+  con 5 pestañas fijas: Home, Comprar, Sommelier, Pedidos, Perfil. Visible
+  en toda la app excepto en Ingreso.
+- **`Perfil.jsx`** (nuevo) — reemplaza los menús desplegables "Cumbo ▾" /
+  "Afiliados ▾" que tenía Ecosistema. Todo lo que vivía ahí (CRM Vendedor,
+  Portal Caficultor, Panel Cumbo, Directorio, Logística) sigue existiendo
+  — ahora organizado por rol dentro de Perfil, igual que estas apps
+  agrupan cuentas y accesos secundarios.
+- **Búsqueda real** — el buscador del Home ya no es decorativo: escribir
+  algo y darle enter te lleva al Marketplace con ese texto ya filtrado
+  (`/marketplace?q=...`), filtrando café, métodos y accesorios por nombre.
+- **Marketplace** además suma tarjetas con ícono/calificación por
+  producto y una barra de carrito flotante estilo Rappi.
+- Se agregó `lucide-react` como librería de íconos.
+
+## Accesos y contenido editable por el CEO
+
+Confirmando el modelo de accesos, para que quede documentado: son roles
+distintos con distintos propósitos —
+- **Cliente**: compra y navega (Ecosistema, Marketplace, Sommelier, Mis
+  Pedidos, Comunidad, Recetario, Trazabilidad).
+- **Caficultor** / **Vendedor**: registran y gestionan lo que venden
+  (Portal Caficultor, CRM Vendedor) — cualquier cliente puede convertirse
+  en uno de estos al publicar su primera finca/producto.
+- **CEO** (y **Logística** para lo operativo): acceso exclusivo de
+  seguimiento y control — Panel Cumbo, Directorio de Caficultores,
+  Logística. Ya eran los únicos que podían entrar ahí desde antes.
+
+**Nuevo:** el CEO ahora puede editar contenido de texto y audiovisual
+sin tocar código — pestaña **"Contenido"** dentro de Panel Cumbo:
+- Los **videos del Home** (antes hardcodeados en `Ecosistema.jsx`)
+- Las **preguntas rápidas del chat de WhatsApp** (agregar, editar, eliminar)
+
+**Cambio importante en el FAQ (a pedido):** las preguntas frecuentes ya
+no viven como una sección visible en el Home — se movieron a un **chat
+flotante de WhatsApp** (ícono verde abajo a la derecha, visible en
+Ecosistema). Al tocarlo, se abre un panel con esas mismas preguntas
+como accesos rápidos; tocar una abre WhatsApp con esa pregunta ya
+escrita, lista para mandar. También hay un botón "Escribir directamente"
+para cualquier otra consulta. El campo `respuesta` que tenía cada
+pregunta ya no se usa en ningún lado (la respuesta ahora la da una
+persona real por WhatsApp, no la interfaz) — lo saqué del editor para
+no confundir al CEO editando algo que no se ve.
+
+**Pendiente tuyo:** el número de WhatsApp está en
+`NUMERO_WHATSAPP_ATENCION` dentro de `Ecosistema.jsx`, con un número de
+ejemplo (`573000000000`) — reemplazalo por el número real de atención
+al cliente de Cumbo antes de publicar.
+
+Esto se guarda en la tabla `contenido_app` que Ecosistema lee en vivo —
+si la tabla está vacía o falla la carga, la app usa el mismo contenido
+de respaldo que tenía antes, así que nunca se rompe la pantalla por
+falta de contenido.
+
+**Otro bug real que encontré al construir esto:** `eventos_log.entidad_id`
+era obligatorio desde el esquema original, pero ni "publicar producto"
+en CRM Vendedor ni esta edición de contenido tienen un único id de
+entidad — son casos legítimos sin ese dato. Sin la corrección en
+`cumbo_schema_contenido.sql`, esos eventos venían fallando en silencio
+desde que migramos CRM Vendedor.
+
+## Pago real: Mercado Pago + Wompi (PSE, Efecty, Nequi y tarjetas)
+
+En el checkout, el cliente elige entre **Mercado Pago** o **Wompi** antes
+de confirmar. Dato importante que quiero que tengas claro: **PSE y
+Efecty no son pasarelas separadas** — vienen incluidos dentro de Wompi
+(junto con Nequi y tarjetas) y también dentro de Mercado Pago. No hizo
+falta integrar cada uno por separado.
+
+## Mercado Pago (Checkout Pro)
+
+Ya no es un checkout que finge cobrar — el botón "Confirmar y pagar" del
+Marketplace crea el pedido real y redirige de verdad al checkout de
+Mercado Pago. El cliente paga ahí (tarjeta, PSE, Efecty, lo que Mercado
+Pago le ofrezca), y Mercado Pago le avisa a Cumbo por webhook cuando el
+pago se aprueba — no antes.
+
+**Por qué esto necesitó dos Edge Functions de Supabase** (no se podía
+hacer solo con código de React): la clave privada de Mercado Pago
+(`MP_ACCESS_TOKEN`) nunca puede vivir en el navegador — cualquiera podría
+verla y usar tu cuenta. Tiene que vivir en un servidor. Como no tenías
+backend propio, uso Supabase Edge Functions (Deno), que es exactamente
+lo que ya estaba anotado como pendiente en este README.
+
+- **`supabase/functions/crear-preferencia-pago`** — recibe el `pedido_id`
+  ya creado, le pide a Mercado Pago el link de checkout (`init_point`) y
+  lo devuelve. El precio que se cobra sale de `pedido_items` en la base,
+  nunca de un número que mande el navegador.
+- **`supabase/functions/webhook-mercadopago`** — Mercado Pago le avisa a
+  esta función cada vez que un pago cambia de estado. Solo cuando llega
+  `approved` se marca `pedidos.pago_confirmado = true` de verdad. La
+  pantalla de "pago exitoso" que ve el cliente al volver es solo una
+  señal optimista — la confirmación real siempre viene del webhook, no
+  de que el navegador haya vuelto a la app.
+
+### Cómo desplegar esto (pasos que te corresponden a ti)
+
+1. **Crear tu cuenta/aplicación en Mercado Pago Colombia**
+   → https://www.mercadopago.com.co/developers/panel
+   Ahí sacas tu `Access Token` (usa el de prueba primero, "Sandbox", para
+   probar sin mover dinero real).
+
+2. **Instalar el CLI de Supabase** (si no lo tienes):
+   ```bash
+   npm install -g supabase
+   supabase login
+   supabase link --project-ref TU_PROJECT_REF
+   ```
+
+3. **Configurar los secrets** (nunca van en el código ni en git):
+   ```bash
+   supabase secrets set MP_ACCESS_TOKEN=TU_ACCESS_TOKEN_DE_MERCADO_PAGO
+   supabase secrets set FRONTEND_URL=https://tu-dominio-real.com
+   ```
+
+4. **Desplegar las dos funciones:**
+   ```bash
+   supabase functions deploy crear-preferencia-pago
+   supabase functions deploy webhook-mercadopago
+   ```
+
+5. **Correr `cumbo_schema_pagos.sql`** en el SQL Editor de Supabase
+   (agrega `pago_confirmado`, `mercadopago_preference_id`,
+   `mercadopago_payment_id` a `pedidos`).
+
+6. Probar un pedido de punta a punta con el Access Token de **Sandbox**
+   de Mercado Pago (te da tarjetas de prueba) antes de pasar a producción.
+
+### Lo que falta para producción real (honesto, no lo voy a esconder)
+
+- Mientras estés en desarrollo local (`localhost:5173`), Mercado Pago no
+  puede mandarle el webhook a tu máquina — necesitas la app desplegada en
+  una URL pública para que `notification_url` funcione de verdad.
+- En la app nativa (Capacitor/iOS/Android), redirigir a una URL externa y
+  volver requiere un poco más de trabajo que en la versión web (deep
+  link o el plugin `Browser` de Capacitor) — la versión web ya funciona
+  tal cual, la nativa es el siguiente paso cuando llegues a empaquetar.
+
+## Wompi (Web Checkout — PSE, Efecty, Nequi y tarjetas)
+
+- **`supabase/functions/crear-pago-wompi`** — calcula la firma de
+  integridad real (SHA-256 de referencia+monto+moneda+secreto, como
+  exige Wompi) y arma el link de checkout. El secreto de integridad
+  nunca toca el navegador — es la misma razón por la que Mercado Pago
+  necesitó su propia Edge Function.
+- **`supabase/functions/webhook-wompi`** — recibe el evento cuando el
+  pago llega a estado final, **valida la firma del evento** (para
+  confirmar que de verdad viene de Wompi y no de alguien simulando la
+  llamada) y solo entonces marca `pago_confirmado = true`.
+
+### Cómo desplegar esto (además de lo de Mercado Pago)
+
+1. **Crear tu cuenta en Wompi** → https://comercios.wompi.co
+   Desde el dashboard sacas 3 datos (usa el modo Sandbox para probar):
+   - Llave pública (`pub_...`)
+   - Secreto de integridad
+   - Secreto de eventos (es distinto del de integridad — Wompi los
+     llama así en su dashboard, no los confundas)
+
+2. **Configurar los secrets:**
+   ```bash
+   supabase secrets set WOMPI_PUBLIC_KEY=pub_...
+   supabase secrets set WOMPI_INTEGRITY_SECRET=...
+   supabase secrets set WOMPI_EVENTS_SECRET=...
+   ```
+
+3. **Desplegar las funciones:**
+   ```bash
+   supabase functions deploy crear-pago-wompi
+   supabase functions deploy webhook-wompi
+   ```
+
+4. **Configurar la URL de eventos en el dashboard de Wompi**
+   (Desarrolladores → URL de eventos), tanto en Sandbox como en
+   producción:
+   `https://TU_PROJECT_REF.supabase.co/functions/v1/webhook-wompi`
+
+5. **Correr `cumbo_schema_wompi.sql`** (agrega `wompi_transaction_id` y
+   `pasarela_pago` a `pedidos`).
+
+## Envíos: tarifas reales para elegir + seguimiento propio del cliente
+
+- **Elegir tarifa en el checkout, según destino** — Cumbo despacha
+  desde **Bogotá**. Si la ciudad de entrega que escribe el cliente es
+  Bogotá, ve mensajería urbana (**Yango, Didi** — mismo día); si es
+  cualquier otra ciudad, ve transportadora nacional
+  (**Interrapidísimo, Coordinadora, Servientrega**). La comparación de
+  ciudad es por texto (ignora tildes/mayúsculas), así que "bogota",
+  "Bogotá" o "BOGOTÁ" cuentan igual. **Importante:** estas tarifas son
+  estimadas de referencia — no hay todavía una cotización en vivo
+  conectada a ninguna API real. La transportadora elegida y el costo
+  quedan guardados en el pedido de verdad.
+- **Mis Pedidos** (`/mis-pedidos`, nueva pantalla, no estaba en el
+  handoff original) — el cliente puede ver el estado real de sus
+  propios pedidos, la guía cuando ya se asignó, y una línea de tiempo
+  de alertas (los mismos eventos que ve Logística, pero solo los suyos).
+  Se llega ahí tocando el avatar en el header de Ecosistema.
+
+**Corrección de seguridad importante encontrada al construir esto:** la
+policy original de `eventos_log` dejaba que *cualquier* usuario
+autenticado leyera *todo* el log — cualquier cliente logueado podía ver
+los pedidos de otras personas o las fincas de otros caficultores. Se
+detectó justo al construir Mis Pedidos, porque ahí el cliente por fin
+necesitaba leer ese log de verdad. Corregido en
+`cumbo_schema_mis_pedidos.sql`: ahora cada persona solo ve sus propios
+eventos (o los de su propia finca), y el equipo Cumbo/logística sigue
+viendo todo como antes.
+
+## Setup
+
+1. **Instalar dependencias**
+   ```bash
+   npm install
+   ```
+
+2. **Crear proyecto en Supabase** (si no lo tienes)
+   - Ir a https://supabase.com → New Project
+   - Copiar la URL y la `anon key` desde Project Settings → API
+
+3. **Correr el esquema de base de datos** (en orden)
+   - En el Dashboard de Supabase → SQL Editor → New query
+   - `cumbo_schema.sql` → Run
+   - `cumbo_schema_marketplace.sql` → Run
+   - `cumbo_schema_portal_caficultor.sql` → Run
+   - `cumbo_schema_panel.sql` → Run (permisos de CEO + corrección de
+     policies faltantes en `pedido_items`)
+   - `cumbo_schema_crm_vendedor.sql` → Run (corrección de policies
+     faltantes en `productos`)
+   - `cumbo_schema_comunidad.sql` → Run (tabla de publicaciones + likes)
+   - `cumbo_schema_logistica.sql` → Run (**corrección importante**: a
+     `eventos_log` le faltaba la policy de INSERT desde el inicio —
+     ver detalle abajo — + permisos del rol logística)
+   - `cumbo_schema_direccion_entrega.sql` → Run (dirección/ciudad/
+     teléfono de entrega en pedidos)
+   - `cumbo_schema_mis_pedidos.sql` → Run (**corrección de seguridad**:
+     `eventos_log` dejaba ver el log de cualquiera a cualquiera — ver
+     detalle abajo)
+   - `cumbo_schema_pagos.sql` → Run (campos de seguimiento de pago real
+     con Mercado Pago — ver sección de pagos más abajo)
+   - `cumbo_schema_wompi.sql` → Run (campos para Wompi como segunda
+     pasarela)
+   - `cumbo_schema_contenido.sql` → Run (**corrección importante**:
+     `eventos_log.entidad_id` era obligatorio y bloqueaba silenciosamente
+     eventos legítimos sin un id único — ver detalle arriba — + tabla de
+     contenido editable para el CEO)
+
+   **Si en algún momento llegaste a correr** `cumbo_schema_paypal.sql`
+   (se descartó agregar PayPal), corré `cumbo_schema_revertir_paypal.sql`
+   para quitar esos campos. Si nunca lo corriste, ignoralo.
+
+   **Si en algún momento llegaste a correr** `cumbo_schema_contraentrega.sql`
+   (del experimento de pago contraentrega que se descartó), corré
+   también `cumbo_schema_revertir_contraentrega.sql` para quitar esos
+   campos de la base. Si nunca lo corriste, ignora ambos archivos.
+
+4. **Configurar variables de entorno**
+   ```bash
+   cp .env.example .env
+   # completar VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY
+   ```
+
+5. **Habilitar login con Google** (opcional, ya está el botón conectado)
+   - Supabase Dashboard → Authentication → Providers → Google → activar
+     y completar Client ID / Secret (se generan en Google Cloud Console)
+
+6. **Correr en desarrollo (navegador)**
+   ```bash
+   npm run dev
+   ```
+
+## Pasar a app nativa (Capacitor)
+
+```bash
+npm run build
+npx cap add ios       # primera vez
+npx cap add android   # primera vez
+npm run cap:sync
+npm run cap:ios        # abre Xcode
+npm run cap:android    # abre Android Studio
+```
+
+Requiere Xcode (Mac) para iOS y Android Studio para Android.
+
+## Qué sigue (pendientes reales, no del prototipo)
+
+Todo lo que quedó deliberadamente afuera durante la migración, agrupado
+porque varios ítems comparten la misma pieza de infraestructura que
+falta:
+
+1. **Integración con una transportadora o agregador real** (Servientrega,
+   Coordinadora, etc.) — para cotizar tarifas y rastrear en vivo dentro
+   de la app, en vez de solo enlazar al sitio de cada una. Ahora es el
+   siguiente bloqueante más importante — el pago real ya está resuelto.
+2. **Función de backend con la API de Claude** (Supabase Edge Function) —
+   la necesitan tres cosas que hoy son manuales: clasificación de calidad
+   por foto y generación de copy en CRM Vendedor, y cualquier IA de Cumbo
+   Estudio. El prototipo las llamaba directo desde el navegador con
+   `window.claude.complete`, que solo existe en el entorno de prototipado.
+3. **Cumbo Estudio** — no es una pantalla que faltara migrar, es un
+   módulo aparte de tu ecosistema (con sus propios tiers de suscripción)
+   que todavía no se ha empezado a construir.
+4. **Modelador financiero de Panel Cumbo** — competencia de precios,
+   estacionalidad, ranking de marcas socias, facturación DIAN. Es
+   inteligencia de negocio, no bloquea nada operativo.
+5. **Correo transaccional** (SendGrid/Resend, ya estaba en tu stack
+   recomendado) — confirmación de pedidos, notificaciones de validación
+   de finca, etc.

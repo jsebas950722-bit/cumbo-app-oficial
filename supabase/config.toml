@@ -1,0 +1,7 @@
+project_id = "cumbo-app"
+
+[db]
+port = 54322
+
+[functions]
+verify_jwt = false

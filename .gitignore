@@ -1,0 +1,25 @@
+# Dependencias
+node_modules/
+
+# Build
+dist/
+dist-ssr/
+
+# Variables de entorno — NUNCA subir credenciales reales
+.env
+.env.local
+.env.*.local
+
+# Capacitor (se generan localmente al correr `npx cap add`)
+ios/
+android/
+
+# Editor / SO
+.vscode/*
+!.vscode/extensions.json
+.DS_Store
+*.log
+
+# Supabase CLI local
+supabase/.branches
+supabase/.temp
