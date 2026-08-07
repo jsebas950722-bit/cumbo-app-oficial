@@ -370,6 +370,61 @@ necesitaba leer ese log de verdad. Corregido en
 eventos (o los de su propia finca), y el equipo Cumbo/logística sigue
 viendo todo como antes.
 
+## Infraestructura de desarrollo
+
+A pedido, se completaron los vacíos reales de infraestructura que hacían
+frágil el desarrollo del proyecto:
+
+- **Control de versiones** — el proyecto no tenía git inicializado hasta
+  ahora. Ya tiene su primer commit en la rama `main`, con `.gitignore`
+  real (node_modules, `.env`, `dist`, carpetas nativas de Capacitor).
+- **Migraciones de base de datos ordenadas** — los 16 archivos SQL
+  sueltos que se fueron generando turno a turno (`cumbo_schema*.sql`)
+  ya están consolidados en `supabase/migrations/`, numerados en el orden
+  correcto de ejecución, siguiendo la convención del CLI de Supabase.
+  Se dejaron afuera del historial limpio los experimentos ya revertidos
+  (contraentrega, PayPal) — el estado final es el mismo sin arrastrar
+  pasos de más. **Para configurar una base nueva desde cero, ahora podés
+  simplemente correr `supabase db push` en vez de copiar y pegar 16
+  archivos a mano** (ver la sección Setup más abajo para el detalle).
+- **ESLint + Prettier** (`npm run lint`, `npm run format`) — al
+  configurarlos encontraron un error real (`SpeechSynthesisUtterance` no
+  estaba declarado como global en Sommelier.jsx), ya corregido. El
+  código de las 15 pantallas se formateó de forma consistente.
+- **Error Boundary de React** (`src/components/ErrorBoundary.jsx`) —
+  antes, cualquier error de JavaScript no controlado en cualquier
+  pantalla tumbaba toda la app en una pantalla blanca sin ningún
+  mensaje. Ahora se muestra un aviso legible con botón de recargar.
+- **CI con GitHub Actions** (`.github/workflows/ci.yml`) — corre lint y
+  build automáticamente en cada push/PR a `main`, para detectar errores
+  antes de que lleguen a producción.
+- **Almacenamiento real de fotos de producto** — el Marketplace mostraba
+  un ícono genérico de café en vez de una foto real. Ahora hay un bucket
+  de Storage (`productos-imagenes`) y CRM Vendedor permite subir la foto
+  al publicar; el Marketplace la muestra en las tres categorías (café,
+  métodos, accesorios).
+  **Bug encontrado de paso:** las tarjetas de método/accesorio mostraban
+  `marca_externa`, que viene vacío para productos publicados por un
+  vendedor real (a diferencia de las marcas socias sembradas por SQL) —
+  quedaban con el nombre en blanco. Ya corregido: cae de vuelta al
+  nombre del producto cuando no hay marca externa.
+
+### Cómo usar las migraciones con el CLI de Supabase (recomendado)
+
+En vez de copiar y pegar cada archivo `.sql` a mano en el SQL Editor:
+
+```bash
+npm install -g supabase
+supabase login
+supabase link --project-ref TU_PROJECT_REF
+supabase db push
+```
+
+Esto corre las 13 migraciones de `supabase/migrations/` en orden
+automáticamente. Si preferís seguir copiando y pegando a mano en el SQL
+Editor del dashboard, los mismos archivos siguen funcionando igual —
+solo abrilos en orden desde `supabase/migrations/`.
+
 ## Setup
 
 1. **Instalar dependencias**
@@ -381,41 +436,19 @@ viendo todo como antes.
    - Ir a https://supabase.com → New Project
    - Copiar la URL y la `anon key` desde Project Settings → API
 
-3. **Correr el esquema de base de datos** (en orden)
-   - En el Dashboard de Supabase → SQL Editor → New query
-   - `cumbo_schema.sql` → Run
-   - `cumbo_schema_marketplace.sql` → Run
-   - `cumbo_schema_portal_caficultor.sql` → Run
-   - `cumbo_schema_panel.sql` → Run (permisos de CEO + corrección de
-     policies faltantes en `pedido_items`)
-   - `cumbo_schema_crm_vendedor.sql` → Run (corrección de policies
-     faltantes en `productos`)
-   - `cumbo_schema_comunidad.sql` → Run (tabla de publicaciones + likes)
-   - `cumbo_schema_logistica.sql` → Run (**corrección importante**: a
-     `eventos_log` le faltaba la policy de INSERT desde el inicio —
-     ver detalle abajo — + permisos del rol logística)
-   - `cumbo_schema_direccion_entrega.sql` → Run (dirección/ciudad/
-     teléfono de entrega en pedidos)
-   - `cumbo_schema_mis_pedidos.sql` → Run (**corrección de seguridad**:
-     `eventos_log` dejaba ver el log de cualquiera a cualquiera — ver
-     detalle abajo)
-   - `cumbo_schema_pagos.sql` → Run (campos de seguimiento de pago real
-     con Mercado Pago — ver sección de pagos más abajo)
-   - `cumbo_schema_wompi.sql` → Run (campos para Wompi como segunda
-     pasarela)
-   - `cumbo_schema_contenido.sql` → Run (**corrección importante**:
-     `eventos_log.entidad_id` era obligatorio y bloqueaba silenciosamente
-     eventos legítimos sin un id único — ver detalle arriba — + tabla de
-     contenido editable para el CEO)
+3. **Correr las migraciones de base de datos**
+   - **Opción recomendada** (automática): con el CLI de Supabase ya
+     configurado (ver sección de infraestructura más arriba), corré
+     `supabase db push` — aplica las 13 migraciones de
+     `supabase/migrations/` en orden.
+   - **Opción manual**: en el Dashboard de Supabase → SQL Editor → New
+     query, abrí cada archivo de `supabase/migrations/` **en orden por
+     nombre** (ya vienen numerados) y ejecutalos uno por uno.
 
-   **Si en algún momento llegaste a correr** `cumbo_schema_paypal.sql`
-   (se descartó agregar PayPal), corré `cumbo_schema_revertir_paypal.sql`
-   para quitar esos campos. Si nunca lo corriste, ignoralo.
-
-   **Si en algún momento llegaste a correr** `cumbo_schema_contraentrega.sql`
-   (del experimento de pago contraentrega que se descartó), corré
-   también `cumbo_schema_revertir_contraentrega.sql` para quitar esos
-   campos de la base. Si nunca lo corriste, ignora ambos archivos.
+   Si en algún momento llegaste a correr `cumbo_schema_paypal.sql` o
+   `cumbo_schema_contraentrega.sql` (experimentos descartados, ya no
+   están en `supabase/migrations/`), pedime los archivos de reversión
+   correspondientes.
 
 4. **Configurar variables de entorno**
    ```bash
