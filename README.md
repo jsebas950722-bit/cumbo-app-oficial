@@ -372,6 +372,14 @@ viendo todo como antes.
 
 ## Infraestructura de desarrollo
 
+> **Ver también:** [`docs/PROTOCOLOS.md`](./docs/PROTOCOLOS.md) —
+> auditoría completa de todo lo que hace falta para que la app funcione
+> al 100% (seguridad, pagos, legal Colombia, tiendas de apps, calidad,
+> operación), con lo ya corregido y lo que sigue pendiente de tu parte.
+>
+> **Nuevo:** `npm run test` corre las pruebas automatizadas del
+> proyecto (Vitest) — sigue en el CI de GitHub Actions en cada push.
+
 A pedido, se completaron los vacíos reales de infraestructura que hacían
 frágil el desarrollo del proyecto:
 

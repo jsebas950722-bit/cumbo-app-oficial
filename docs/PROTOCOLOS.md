@@ -1,11 +1,12 @@
 # Protocolos para que Cumbo funcione al 100%
 
-Auditoría completa a la fecha (agosto 2026). Se organiza en 6 bloques.
-Cada ítem indica su estado real:
+Auditoría completa a la fecha (agosto 2026), actualizada tras la ronda
+de correcciones. Se organiza en 6 bloques. Cada ítem indica su estado
+real:
 
 - ✅ **Ya existe** — construido y verificado
 - ⚠️ **Parcial** — existe algo, pero no está completo
-- ❌ **Falta** — no existe todavía
+- ❌ **Falta** — necesita algo que solo tú puedes hacer (cuenta externa, decisión de negocio, revisión legal)
 
 ---
 
@@ -13,16 +14,17 @@ Cada ítem indica su estado real:
 
 | Protocolo | Estado | Detalle |
 |---|---|---|
-| Row Level Security en todas las tablas | ✅ | Cada tabla tiene políticas por rol (cliente/caficultor/vendedor/logística/CEO) |
+| Row Level Security en todas las tablas | ✅ | Cada tabla tiene políticas por rol |
 | Autenticación real | ✅ | Supabase Auth (correo/contraseña + Google OAuth) |
-| Separación de datos sensibles | ✅ | Cuentas bancarias y cédula en `fincas_datos_pago`, tabla aparte con RLS propia — nunca expuestas en el Marketplace |
-| Funciones de pago exigen sesión propia | ✅ (corregido hoy) | `verify_jwt=true` + verificación de que el pedido pertenezca a quien llama — antes cualquiera sin sesión podía generar un link de cobro |
-| Rate limiting en Edge Functions | ❌ | Nada impide que alguien llame `crear-preferencia-pago` en bucle. Supabase tiene límites por proyecto, pero no hay límite por usuario/IP a nivel de código |
-| CORS restringido a tu dominio | ⚠️ | Hoy `Access-Control-Allow-Origin: *` en todas las funciones — funciona, pero cualquier sitio podría invocarlas desde el navegador de un usuario logueado. Se restringe fácil cuando tengas el dominio final |
-| Validación de inputs en Edge Functions | ⚠️ | Se valida que existan los campos obligatorios, pero no hay una librería de validación de esquemas (ej: Zod) — funciona, pero no es robusto ante datos malformados |
-| Backups de la base de datos | ⚠️ | Supabase hace backups automáticos en planes pagos — confirmar qué plan tenés y su política de retención |
-| Monitoreo de errores en producción | ❌ | No hay Sentry ni similar — hoy los errores solo se ven en la consola del navegador de quien los sufre, nadie se entera del lado de Cumbo |
-| Analítica de uso | ❌ | No hay Plausible/PostHog/Google Analytics — no hay forma de saber cuánta gente usa cada pantalla |
+| Separación de datos sensibles | ✅ | Cuentas bancarias y cédula en tabla aparte con RLS propia |
+| Funciones de pago exigen sesión propia | ✅ | `verify_jwt=true` + verificación de dueño del pedido |
+| Rate limiting en Edge Functions | ✅ | Máx. 8 pedidos/minuto por usuario en las funciones de pago — corrigido en esta ronda |
+| CORS restringido a tu dominio | ✅ (configurable) | Ya no es `'*'` fijo — usa `FRONTEND_URL`. **Falta que tú** configures esa variable con tu dominio real cuando lo tengas |
+| Eliminación de cuenta real | ✅ | Edge Function que borra de verdad, anonimizando pedidos (no borrándolos) para cumplir retención contable |
+| Validación de inputs en Edge Functions | ⚠️ | Se valida que existan los campos obligatorios, sin librería de esquemas (ej: Zod) — funciona, no es exhaustivo |
+| Backups de la base de datos | ❌ | **Depende de tu plan de Supabase** — confirmar cuál tenés y su política de retención |
+| Monitoreo de errores en producción | ✅ (opcional) | Sentry integrado — no hace nada hasta que configures `VITE_SENTRY_DSN` (cuenta gratuita en sentry.io) |
+| Analítica de uso | ❌ | Sigue sin resolver — necesita elegir una herramienta (Plausible/PostHog/GA) y una decisión tuya de cuál |
 
 ---
 
@@ -30,31 +32,23 @@ Cada ítem indica su estado real:
 
 | Protocolo | Estado | Detalle |
 |---|---|---|
-| Cobro real (Mercado Pago + Wompi) | ✅ | Con webhooks que validan firma antes de marcar como pagado |
-| Conciliación contable | ❌ | No hay proceso que compare lo que dicen Mercado Pago/Wompi contra lo que dice `pedidos.pago_confirmado` — si un webhook falla silenciosamente, nadie se entera |
-| Facturación electrónica DIAN | ❌ | **Obligatoria en Colombia** según el calendario de la DIAN por tipo de contribuyente — sin esto, no podés facturar legalmente por encima del umbral que te asignen. Formato exigido: XML UBL 2.1 validado por la DIAN. Esto normalmente se resuelve con un proveedor tecnológico autorizado (ej: Alegra, Siigo, Factus), no construyéndolo desde cero |
-| Comisión de Cumbo sobre ventas de vendedores (8%) | ⚠️ | Está documentada en el código/Constitución, pero no hay ningún proceso automático que cobre o descuente esa comisión — hoy es solo un número de referencia |
+| Cobro real (Mercado Pago + Wompi) | ✅ | Con webhooks que validan firma |
+| Conciliación contable | ❌ | Sigue sin un proceso que compare lo que dicen las pasarelas contra `pedidos.pago_confirmado` |
+| Facturación electrónica DIAN | ❌ | **No lo puedo resolver con código de la app** — necesita un proveedor tecnológico externo (Alegra, Siigo, Factus) y una decisión de negocio de con cuál trabajar |
+| Comisión de Cumbo sobre ventas (8%) | ⚠️ | Documentada, pero sigue sin cobro automático |
 
 ---
 
 ## 3. Cumplimiento legal (Colombia)
 
-Esto es lo que más urgente encontré — no es código, es documentación legal
-que la ley exige tener **publicada y accesible** antes de operar:
-
-| Protocolo | Estado | Ley aplicable |
+| Protocolo | Estado | Detalle |
 |---|---|---|
-| Política de tratamiento de datos personales | ❌ | Ley 1581 de 2012 (Habeas Data). Obligatoria — la SIC puede multar hasta 2.000 SMLMV por no tenerla |
-| Casilla de consentimiento explícito al registrarse | ❌ | Misma ley — hoy `Ingreso.jsx` crea la cuenta sin pedir consentimiento explícito de tratamiento de datos |
-| Términos y condiciones de uso | ❌ | Ley 1480 de 2011 (Estatuto del Consumidor) |
-| Aviso de derecho de retracto (5 días hábiles) | ❌ | Misma ley — el cliente tiene derecho a devolver su compra sin dar explicaciones dentro de los 5 días hábiles después de recibirla. Hoy el FAQ solo menciona devoluciones por producto dañado, no este derecho específico |
-| Registro mercantil / Cámara de Comercio | ⚠️ | Ya se investigaron los códigos CIIU en una sesión anterior — confirmar que el registro ya esté hecho |
-| Impuesto de Industria y Comercio (ICA) | ❌ | Tributo municipal sobre la actividad comercial, se declara ante la Secretaría de Hacienda del municipio donde opera Cumbo |
-
-**Esto no lo puedo resolver yo solo con código** — la política de
-privacidad y los términos y condiciones son documentos legales que
-idealmente redacta o revisa un abogado, aunque puedo armarte un
-borrador inicial si querés partir de algo.
+| Política de tratamiento de datos personales | ✅ (borrador) | `/privacidad` — **necesita revisión de un abogado antes de considerarse definitiva**, pero ya no está vacía |
+| Casilla de consentimiento explícito al registrarse | ✅ | Obligatoria, con fecha registrada en `usuarios.consentimiento_datos_en` |
+| Términos y condiciones de uso | ✅ (borrador) | `/terminos` — mismo aviso que la política de privacidad |
+| Aviso de derecho de retracto (5 días hábiles) | ✅ | Incluido en los Términos y Condiciones, sección 4 |
+| Registro mercantil / Cámara de Comercio | ❌ | **Trámite tuyo**, fuera del alcance del código |
+| Impuesto de Industria y Comercio (ICA) | ❌ | **Trámite tuyo** ante la Secretaría de Hacienda municipal |
 
 ---
 
@@ -62,12 +56,12 @@ borrador inicial si querés partir de algo.
 
 | Protocolo | Estado | Detalle |
 |---|---|---|
-| Cuenta de Apple Developer | ⚠️ | Mencionado como necesario desde el inicio del proyecto — confirmar que ya la tengas |
-| Cuenta de Google Play Console | ⚠️ | Mismo caso |
-| Política de privacidad con URL pública | ❌ | Apple y Google la exigen como requisito de publicación, no es opcional — necesita estar en una URL real, no solo en este documento |
-| Eliminación de cuenta desde la app | ❌ | Apple exige que si dejás crear cuenta, también dejés eliminarla desde la app — hoy no existe esa opción en Perfil |
-| Ícono y capturas de pantalla para la ficha de la tienda | ❌ | Tenés el logo, pero no assets preparados en los tamaños que exige cada tienda |
-| Notificaciones push | ❌ | No configuradas — opcional, pero común para avisar cambios de estado de pedido |
+| Cuenta de Apple Developer | ❌ | **Solo tú puedes crearla** (requiere pago y verificación de identidad/empresa) |
+| Cuenta de Google Play Console | ❌ | **Solo tú puedes crearla** |
+| Política de privacidad con URL pública | ✅ | Ya existe en `/privacidad` — cuando despliegues la app, esa URL queda pública automáticamente |
+| Eliminación de cuenta desde la app | ✅ | Implementada en esta ronda — Apple lo exige y ya está |
+| Ícono y capturas de pantalla para la ficha de la tienda | ❌ | Trabajo de diseño, no de código — puedo ayudarte cuando llegues a ese punto |
+| Notificaciones push | ❌ | No configuradas — opcional |
 
 ---
 
@@ -75,11 +69,11 @@ borrador inicial si querés partir de algo.
 
 | Protocolo | Estado | Detalle |
 |---|---|---|
-| Compilación verificada | ✅ | Cada cambio se compiló y verificó sin errores antes de entregarse |
-| Linter (ESLint) | ✅ | Configurado, encontró y corrigió 1 error real. Cubre `src/` (React) — las Edge Functions en `supabase/functions/` son Deno/TypeScript y quedaron fuera de este linter a propósito, necesitarían `deno lint` por separado |
-| CI automático | ✅ | GitHub Actions corre lint + build en cada push |
-| Pruebas automatizadas (unitarias/integración) | ❌ | No existe ni un solo test. Todo lo verificado hasta ahora fue manual (compilar y revisar) |
-| Pruebas end-to-end (flujo completo de compra) | ❌ | Nadie probó el flujo completo con datos y credenciales reales todavía — sigue pendiente que lo hagas vos con tu propio Supabase conectado |
+| Compilación verificada | ✅ | Cada cambio se compiló antes de entregarse |
+| Linter (ESLint) | ✅ | Sin errores |
+| CI automático | ✅ | Lint + tests + build en cada push |
+| Pruebas automatizadas | ✅ | 12 pruebas reales sobre la lógica de tarifas/precios — es un comienzo, no cobertura completa |
+| Pruebas end-to-end (flujo completo de compra) | ❌ | **Sigue pendiente que tú lo prueques** con tus propias credenciales reales de Supabase/Mercado Pago/Wompi — nadie puede probar esto sin esas credenciales |
 
 ---
 
@@ -87,24 +81,27 @@ borrador inicial si querés partir de algo.
 
 | Protocolo | Estado | Detalle |
 |---|---|---|
-| Atención al cliente | ✅ | Chat flotante de WhatsApp (falta el número real, hoy es un placeholder) |
-| Proceso de devoluciones/reembolsos | ⚠️ | Se menciona en el FAQ, pero no hay ningún flujo en la app que gestione una devolución real (reembolso vía Mercado Pago/Wompi, actualización de estado) |
-| Plan de recuperación ante desastres | ❌ | Si Supabase tiene una caída, o si alguien borra datos por error, no hay un plan documentado de qué hacer |
-| Documentación para nuevos desarrolladores | ✅ | El README ya documenta cada pieza construida y por qué |
+| Atención al cliente | ✅ | Chat flotante de WhatsApp (**falta que pongas el número real**) |
+| Proceso de devoluciones/reembolsos | ⚠️ | El derecho de retracto ya está documentado en los Términos, pero todavía no hay un flujo en la app que gestione una devolución de punta a punta (solicitud → aprobación → reembolso real vía la pasarela) |
+| Plan de recuperación ante desastres | ❌ | Sigue sin documentar — depende de qué plan de Supabase tengas |
+| Documentación para nuevos desarrolladores | ✅ | README + este documento |
 
 ---
 
-## Prioridad sugerida (si tuviera que elegir por dónde seguir)
+## Lo que quedó pendiente y por qué no lo resolví yo
 
-1. **Política de privacidad + consentimiento al registrarse** — es lo
-   más rápido de resolver y lo que más expone a Cumbo legalmente si
-   alguien pone una queja en la SIC.
-2. **Derecho de retracto en el FAQ/checkout** — un párrafo, bajo riesgo,
-   evita una sanción concreta y específica.
-3. **Facturación electrónica DIAN** — más grande, probablemente se
-   resuelve con un proveedor externo (Alegra/Siigo/Factus) en vez de
-   construirlo a mano.
-4. **Monitoreo de errores (Sentry)** — barato de agregar, te avisa si
-   algo se rompe en producción antes de que un cliente se queje.
-5. **Rate limiting + CORS restringido** — antes de tener tráfico real,
-   no es urgente; antes de escalar, sí.
+Estos ítems necesitan algo que solo tú puedes dar — una cuenta, un
+trámite, una decisión de negocio, o la revisión de un profesional:
+
+1. **Revisión legal** de los borradores de Política de Privacidad y
+   Términos — son un punto de partida sólido y específico de Cumbo,
+   pero un abogado debería confirmarlos antes de que sean definitivos.
+2. **Facturación electrónica DIAN** — requiere elegir un proveedor
+   externo (Alegra, Siigo, Factus) y probablemente ya tener el registro
+   mercantil resuelto.
+3. **Cuentas de Apple Developer y Google Play Console** — pagos y
+   verificación de identidad que nadie más puede hacer por ti.
+4. **Número real de WhatsApp** de atención al cliente.
+5. **Confirmar tu plan de Supabase** y su política real de backups.
+6. **Proceso de devoluciones de punta a punta** — es construible, pero
+   es una pieza grande aparte; decime si querés que sigamos por ahí.

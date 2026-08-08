@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, Image as ImageIcon, Video, Plus, Trash2, Save } from 'lucide-react';
+import { ArrowLeft, CheckCircle, XCircle, Image as ImageIcon, Video, Plus, Trash2, Save, DollarSign, ShoppingBag, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
 
@@ -347,35 +347,103 @@ function colorEstado(estado) {
 
 function TabResumen() {
   const [kpis, setKpis] = useState(null);
+  const [serieSemanal, setSerieSemanal] = useState([]);
+  const [actividadReciente, setActividadReciente] = useState([]);
 
   useEffect(() => {
     cargarKpis();
   }, []);
 
   async function cargarKpis() {
-    const [{ count: fincasPendientes }, { count: fincasValidadas }, { data: pedidos }] = await Promise.all([
+    const [{ count: fincasPendientes }, { count: fincasValidadas }, { data: pedidos }, { data: eventos }] = await Promise.all([
       supabase.from('fincas').select('*', { count: 'exact', head: true }).eq('estado', 'pendiente'),
       supabase.from('fincas').select('*', { count: 'exact', head: true }).eq('estado', 'validada'),
-      supabase.from('pedidos').select('total, estado'),
+      supabase.from('pedidos').select('total, estado, fecha'),
+      supabase.from('eventos_log').select('*').order('fecha', { ascending: false }).limit(6),
     ]);
 
-    const totalPedidos = pedidos?.length || 0;
-    const ingresosConfirmados = (pedidos || [])
+    const listaPedidos = pedidos || [];
+    const totalPedidos = listaPedidos.length;
+    const ingresosConfirmados = listaPedidos
       .filter((p) => ['confirmado', 'despachado', 'entregado'].includes(p.estado))
       .reduce((acc, p) => acc + Number(p.total), 0);
+    const pedidosEnRevision = listaPedidos.filter((p) => p.estado === 'en_revision').length;
 
-    setKpis({ fincasPendientes: fincasPendientes || 0, fincasValidadas: fincasValidadas || 0, totalPedidos, ingresosConfirmados });
+    // Comparación real contra la semana anterior — no un número inventado.
+    const hoy = Date.now();
+    const hace7dias = hoy - 7 * 86400000;
+    const hace14dias = hoy - 14 * 86400000;
+    const pedidosEstaSemana = listaPedidos.filter((p) => new Date(p.fecha).getTime() >= hace7dias).length;
+    const pedidosSemanaAnterior = listaPedidos.filter((p) => {
+      const t = new Date(p.fecha).getTime();
+      return t >= hace14dias && t < hace7dias;
+    }).length;
+    const tendenciaPedidos = pedidosSemanaAnterior === 0 ? null : Math.round(((pedidosEstaSemana - pedidosSemanaAnterior) / pedidosSemanaAnterior) * 100);
+
+    // Serie de las últimas 6 semanas, para el gráfico de barras.
+    const semanas = Array.from({ length: 6 }, (_, i) => {
+      const desde = hoy - (6 - i) * 7 * 86400000;
+      const hasta = hoy - (5 - i) * 7 * 86400000;
+      const cantidad = listaPedidos.filter((p) => {
+        const t = new Date(p.fecha).getTime();
+        return t >= desde && t < hasta;
+      }).length;
+      return { semana: i + 1, cantidad };
+    });
+
+    setKpis({ fincasPendientes: fincasPendientes || 0, fincasValidadas: fincasValidadas || 0, totalPedidos, ingresosConfirmados, pedidosEnRevision, tendenciaPedidos });
+    setSerieSemanal(semanas);
+    setActividadReciente(eventos || []);
   }
 
   if (!kpis) return <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>;
 
+  const maxSemana = Math.max(1, ...serieSemanal.map((s) => s.cantidad));
+
   return (
-    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-      <Kpi label="Fincas pendientes" valor={kpis.fincasPendientes} />
-      <Kpi label="Fincas validadas" valor={kpis.fincasValidadas} />
-      <Kpi label="Pedidos totales" valor={kpis.totalPedidos} />
-      <Kpi label="Ingresos confirmados" valor={formatoCOP(kpis.ingresosConfirmados)} />
-      <div style={{ gridColumn: '1 / -1', fontSize: 11, color: 'var(--cafe-oscuro)', textAlign: 'center', marginTop: 6 }}>
+    <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+        <Kpi label="Ingresos confirmados" valor={formatoCOP(kpis.ingresosConfirmados)} Icono={DollarSign} color="var(--exito)" />
+        <Kpi label="Pedidos totales" valor={kpis.totalPedidos} Icono={ShoppingBag} tendencia={kpis.tendenciaPedidos} />
+        <Kpi label="Fincas validadas" valor={kpis.fincasValidadas} Icono={CheckCircle} color="var(--exito)" />
+        <Kpi label="Por revisar" valor={kpis.fincasPendientes + kpis.pedidosEnRevision} Icono={AlertTriangle} color={kpis.fincasPendientes + kpis.pedidosEnRevision > 0 ? 'var(--alerta)' : 'var(--cafe-oscuro)'} />
+      </div>
+
+      <div style={tarjeta}>
+        <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)', marginBottom: 12 }}>Pedidos por semana</div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 90 }}>
+          {serieSemanal.map((s) => (
+            <div key={s.semana} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div
+                style={{
+                  width: '100%',
+                  height: `${Math.max(6, (s.cantidad / maxSemana) * 70)}px`,
+                  background: 'var(--accion)',
+                  borderRadius: 4,
+                }}
+              />
+              <span style={{ fontSize: 9.5, color: 'var(--cafe-oscuro)' }}>{s.cantidad}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--cafe-oscuro)', textAlign: 'center', marginTop: 6 }}>Últimas 6 semanas</div>
+      </div>
+
+      <div style={tarjeta}>
+        <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)', marginBottom: 10 }}>Actividad reciente</div>
+        {actividadReciente.length === 0 ? (
+          <p style={{ fontSize: 12, color: 'var(--cafe-oscuro)' }}>Sin actividad registrada todavía.</p>
+        ) : (
+          actividadReciente.map((ev) => (
+            <div key={ev.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--fondo-calido)', fontSize: 11.5 }}>
+              <span style={{ color: 'var(--marron-tinta)' }}>{etiquetaEvento(ev)}</span>
+              <span style={{ color: 'var(--cafe-oscuro)', flexShrink: 0, marginLeft: 8 }}>{haceTiempoCorto(ev.fecha)}</span>
+            </div>
+          ))
+        )}
+      </div>
+
+      <div style={{ fontSize: 11, color: 'var(--cafe-oscuro)', textAlign: 'center', marginTop: 6 }}>
         El modelador financiero completo (competencia, estacionalidad, ranking de marcas socias, facturación DIAN) todavía no está migrado —
         queda para una fase aparte.
       </div>
@@ -383,11 +451,43 @@ function TabResumen() {
   );
 }
 
-function Kpi({ label, valor }) {
+function etiquetaEvento(ev) {
+  const mapa = {
+    creado: 'Pedido nuevo creado',
+    validada: 'Finca validada',
+    rechazada: 'Finca rechazada',
+    cambio_estado: `Pedido → ${ev.datos?.a || ''}`,
+    pago_aprobado: 'Pago aprobado',
+    pago_rechazado: 'Pago rechazado',
+    publicado: `Producto publicado: ${ev.datos?.nombre || ''}`,
+    editado: 'Contenido del Home editado',
+    cuenta_eliminada: 'Una cuenta se eliminó',
+  };
+  return mapa[ev.accion] || ev.accion;
+}
+
+function haceTiempoCorto(fechaIso) {
+  const diffMs = Date.now() - new Date(fechaIso).getTime();
+  const horas = Math.floor(diffMs / 3600000);
+  if (horas < 1) return 'hace instantes';
+  if (horas < 24) return `hace ${horas}h`;
+  return `hace ${Math.floor(horas / 24)}d`;
+}
+
+function Kpi({ label, valor, Icono, tendencia, color }) {
   return (
-    <div style={{ background: 'var(--superficie)', borderRadius: 16, padding: 16, textAlign: 'center' }}>
-      <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--marron-tinta)' }}>{valor}</div>
-      <div style={{ fontSize: 11, color: 'var(--cafe-oscuro)' }}>{label}</div>
+    <div style={{ background: 'var(--superficie)', borderRadius: 16, padding: 14 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
+        {Icono && <Icono size={17} color={color || 'var(--accion)'} />}
+        {tendencia !== null && tendencia !== undefined && (
+          <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10.5, fontWeight: 'bold', color: tendencia >= 0 ? 'var(--exito)' : 'var(--canela-oscuro)' }}>
+            {tendencia >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
+            {Math.abs(tendencia)}%
+          </span>
+        )}
+      </div>
+      <div style={{ fontSize: 18, fontWeight: 'bold', color: 'var(--marron-tinta)' }}>{valor}</div>
+      <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)' }}>{label}</div>
     </div>
   );
 }
