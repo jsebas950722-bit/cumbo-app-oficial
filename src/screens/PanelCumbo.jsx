@@ -1,6 +1,20 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { ArrowLeft, CheckCircle, XCircle, Image as ImageIcon, Video, Plus, Trash2, Save, DollarSign, ShoppingBag, AlertTriangle, TrendingUp, TrendingDown } from 'lucide-react';
+import {
+  ArrowLeft,
+  CheckCircle,
+  XCircle,
+  Image as ImageIcon,
+  Video,
+  Plus,
+  Trash2,
+  Save,
+  DollarSign,
+  ShoppingBag,
+  AlertTriangle,
+  TrendingUp,
+  TrendingDown,
+} from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
 
@@ -378,7 +392,8 @@ function TabResumen() {
       const t = new Date(p.fecha).getTime();
       return t >= hace14dias && t < hace7dias;
     }).length;
-    const tendenciaPedidos = pedidosSemanaAnterior === 0 ? null : Math.round(((pedidosEstaSemana - pedidosSemanaAnterior) / pedidosSemanaAnterior) * 100);
+    const tendenciaPedidos =
+      pedidosSemanaAnterior === 0 ? null : Math.round(((pedidosEstaSemana - pedidosSemanaAnterior) / pedidosSemanaAnterior) * 100);
 
     // Serie de las últimas 6 semanas, para el gráfico de barras.
     const semanas = Array.from({ length: 6 }, (_, i) => {
@@ -391,7 +406,14 @@ function TabResumen() {
       return { semana: i + 1, cantidad };
     });
 
-    setKpis({ fincasPendientes: fincasPendientes || 0, fincasValidadas: fincasValidadas || 0, totalPedidos, ingresosConfirmados, pedidosEnRevision, tendenciaPedidos });
+    setKpis({
+      fincasPendientes: fincasPendientes || 0,
+      fincasValidadas: fincasValidadas || 0,
+      totalPedidos,
+      ingresosConfirmados,
+      pedidosEnRevision,
+      tendenciaPedidos,
+    });
     setSerieSemanal(semanas);
     setActividadReciente(eventos || []);
   }
@@ -406,7 +428,12 @@ function TabResumen() {
         <Kpi label="Ingresos confirmados" valor={formatoCOP(kpis.ingresosConfirmados)} Icono={DollarSign} color="var(--exito)" />
         <Kpi label="Pedidos totales" valor={kpis.totalPedidos} Icono={ShoppingBag} tendencia={kpis.tendenciaPedidos} />
         <Kpi label="Fincas validadas" valor={kpis.fincasValidadas} Icono={CheckCircle} color="var(--exito)" />
-        <Kpi label="Por revisar" valor={kpis.fincasPendientes + kpis.pedidosEnRevision} Icono={AlertTriangle} color={kpis.fincasPendientes + kpis.pedidosEnRevision > 0 ? 'var(--alerta)' : 'var(--cafe-oscuro)'} />
+        <Kpi
+          label="Por revisar"
+          valor={kpis.fincasPendientes + kpis.pedidosEnRevision}
+          Icono={AlertTriangle}
+          color={kpis.fincasPendientes + kpis.pedidosEnRevision > 0 ? 'var(--alerta)' : 'var(--cafe-oscuro)'}
+        />
       </div>
 
       <div style={tarjeta}>
@@ -435,7 +462,16 @@ function TabResumen() {
           <p style={{ fontSize: 12, color: 'var(--cafe-oscuro)' }}>Sin actividad registrada todavía.</p>
         ) : (
           actividadReciente.map((ev) => (
-            <div key={ev.id} style={{ display: 'flex', justifyContent: 'space-between', padding: '7px 0', borderBottom: '1px solid var(--fondo-calido)', fontSize: 11.5 }}>
+            <div
+              key={ev.id}
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                padding: '7px 0',
+                borderBottom: '1px solid var(--fondo-calido)',
+                fontSize: 11.5,
+              }}
+            >
               <span style={{ color: 'var(--marron-tinta)' }}>{etiquetaEvento(ev)}</span>
               <span style={{ color: 'var(--cafe-oscuro)', flexShrink: 0, marginLeft: 8 }}>{haceTiempoCorto(ev.fecha)}</span>
             </div>
@@ -480,7 +516,16 @@ function Kpi({ label, valor, Icono, tendencia, color }) {
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 8 }}>
         {Icono && <Icono size={17} color={color || 'var(--accion)'} />}
         {tendencia !== null && tendencia !== undefined && (
-          <span style={{ display: 'flex', alignItems: 'center', gap: 2, fontSize: 10.5, fontWeight: 'bold', color: tendencia >= 0 ? 'var(--exito)' : 'var(--canela-oscuro)' }}>
+          <span
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 2,
+              fontSize: 10.5,
+              fontWeight: 'bold',
+              color: tendencia >= 0 ? 'var(--exito)' : 'var(--canela-oscuro)',
+            }}
+          >
             {tendencia >= 0 ? <TrendingUp size={11} /> : <TrendingDown size={11} />}
             {Math.abs(tendencia)}%
           </span>

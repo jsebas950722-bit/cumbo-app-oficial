@@ -45,18 +45,21 @@ Deno.serve(async (req) => {
     // alguien que ya pidió que borráramos sus datos.
     await supabaseAdmin.from('pedidos').update({ direccion_entrega: null, telefono_contacto: null }).eq('cliente_id', user.id);
 
-    // Registramos la eliminación ANTES de borrar (después ya no existiría
-    // el usuario para asociarlo al evento).
+    const correoUsuario = user.email;
+    const { error: errBorrado } = await supabaseAdmin.auth.admin.deleteUser(user.id);
+    if (errBorrado) throw errBorrado;
+
+    // Registramos el evento DESPUÉS de confirmar que el borrado
+    // funcionó de verdad — antes se registraba primero, así que si el
+    // borrado fallaba igual quedaba un evento diciendo que la cuenta
+    // se había eliminado, cosa que no era cierta.
     await supabaseAdmin.from('eventos_log').insert({
       entidad: 'usuario',
       entidad_id: null,
       accion: 'cuenta_eliminada',
-      datos: { correo: user.email },
+      datos: { correo: correoUsuario },
       usuario_id: null,
     });
-
-    const { error: errBorrado } = await supabaseAdmin.auth.admin.deleteUser(user.id);
-    if (errBorrado) throw errBorrado;
 
     return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
   } catch (e) {

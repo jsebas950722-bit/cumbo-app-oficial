@@ -91,6 +91,7 @@ export default function Marketplace() {
     const { data, error: errFetch } = await supabase
       .from('productos')
       .select('*, fincas(nombre_finca, region, proceso, especie, altitud_msnm)')
+      .eq('activo', true)
       .order('nombre');
 
     if (errFetch) {

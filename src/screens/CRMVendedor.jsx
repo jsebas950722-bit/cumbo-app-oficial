@@ -140,9 +140,16 @@ export default function CRMVendedor() {
     await supabase.from('productos').update({ stock }).eq('id', id);
   }
 
-  async function eliminarProducto(id) {
-    setProductos((prev) => prev.filter((p) => p.id !== id));
-    await supabase.from('productos').delete().eq('id', id);
+  async function alternarActivo(producto) {
+    const nuevoValor = !producto.activo;
+    // Actualización optimista, pero esta vez SÍ revisamos si falló y
+    // revertimos — antes, un error acá se ignoraba por completo.
+    setProductos((prev) => prev.map((p) => (p.id === producto.id ? { ...p, activo: nuevoValor } : p)));
+    const { error } = await supabase.from('productos').update({ activo: nuevoValor }).eq('id', producto.id);
+    if (error) {
+      setProductos((prev) => prev.map((p) => (p.id === producto.id ? { ...p, activo: producto.activo } : p)));
+      setError('No se pudo actualizar el producto. Intenta de nuevo.');
+    }
   }
 
   return (
@@ -296,12 +303,24 @@ export default function CRMVendedor() {
                       <div style={{ fontWeight: 'bold', marginTop: 4 }}>{formatoCOP(p.precio)}</div>
                     </div>
                     <button
-                      onClick={() => eliminarProducto(p.id)}
-                      style={{ background: 'none', border: 'none', color: 'var(--canela-oscuro)', fontSize: 12, cursor: 'pointer' }}
+                      onClick={() => alternarActivo(p)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: p.activo ? 'var(--canela-oscuro)' : 'var(--exito)',
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        cursor: 'pointer',
+                      }}
                     >
-                      Eliminar
+                      {p.activo ? 'Desactivar' : 'Activar'}
                     </button>
                   </div>
+                  {!p.activo && (
+                    <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', marginTop: 4 }}>
+                      Desactivado — no aparece en el Marketplace, pero se conserva en el historial de quien ya lo compró.
+                    </div>
+                  )}
                   <label
                     style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 12, color: 'var(--cafe-oscuro)' }}
                   >

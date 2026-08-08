@@ -1,12 +1,43 @@
 # Protocolos para que Cumbo funcione al 100%
 
-Auditoría completa a la fecha (agosto 2026), actualizada tras la ronda
-de correcciones. Se organiza en 6 bloques. Cada ítem indica su estado
-real:
+Auditoría completa a la fecha (agosto 2026), actualizada tras dos
+rondas de correcciones. Se organiza en 6 bloques. Cada ítem indica su
+estado real:
 
 - ✅ **Ya existe** — construido y verificado
 - ⚠️ **Parcial** — existe algo, pero no está completo
 - ❌ **Falta** — necesita algo que solo tú puedes hacer (cuenta externa, decisión de negocio, revisión legal)
+
+---
+
+## Bugs críticos encontrados en la auditoría de funciones (nueva ronda)
+
+Estos no estaban en la lista anterior porque solo aparecen al revisar
+la lógica de punta a punta, no al compilar. Los cuatro ya están
+corregidos:
+
+1. **Crear cuenta nunca guardaba el perfil.** La tabla `usuarios` no
+   tenía política de INSERT desde el primer esquema — el insert manual
+   de Ingreso.jsx fallaba en silencio. Cualquier cuenta creada por
+   correo se quedaba sin fila en `usuarios` (sin rol, sin nombre, sin
+   consentimiento). Se corrigió con un trigger en la base que crea el
+   perfil automáticamente al crear el usuario de autenticación.
+2. **"Continuar con Gmail" nunca creaba el perfil, ni siquiera lo
+   intentaba.** El mismo trigger lo resuelve — ahora funciona sin
+   importar la puerta de entrada.
+3. **Eliminar cuenta habría fallado para casi cualquier usuario real.**
+   `eventos_log.usuario_id` y `contenido_app.actualizado_por` no tenían
+   regla de borrado — Postgres bloquea el DELETE por defecto si algo
+   los referencia. Como casi cualquier acción (crear un pedido, publicar
+   un producto) genera un evento, la función `eliminar-cuenta` habría
+   fallado en la práctica para cualquiera que hubiera usado la app.
+4. **Borrar un producto ya vendido rompía el pedido del cliente, y el
+   error se ignoraba.** `pedido_items.producto_id` tampoco tenía regla
+   de borrado, y `CRMVendedor.jsx` actualizaba la lista visible antes
+   de confirmar que el borrado funcionó — el vendedor veía el producto
+   desaparecer, pero seguía existiendo y comprable. Se corrigió de
+   fondo: ahora los productos se desactivan (nunca se borran de
+   verdad), preservando el historial de compra de los clientes.
 
 ---
 

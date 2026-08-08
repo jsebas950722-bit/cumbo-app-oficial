@@ -56,23 +56,24 @@ export default function Ingreso() {
 
     try {
       if (esCrearCuenta) {
-        const { data, error: errSignUp } = await supabase.auth.signUp({
+        // El perfil en `usuarios` ya NO se crea acá manualmente — un
+        // trigger en la base de datos lo crea automáticamente en
+        // cuanto se crea el usuario de autenticación (ver migración
+        // 20260101001600_corregir_creacion_perfil.sql). El insert
+        // manual que había antes fallaba en silencio porque a
+        // `usuarios` le faltaba la policy de INSERT — este era un bug
+        // real, no una simplificación de código.
+        const { error: errSignUp } = await supabase.auth.signUp({
           email: correo,
           password: clave,
-          options: { data: { nombre_completo: nombre } },
+          options: {
+            data: {
+              nombre_completo: nombre,
+              consentimiento_datos_en: new Date().toISOString(),
+            },
+          },
         });
         if (errSignUp) throw errSignUp;
-
-        if (data.user) {
-          const { error: errPerfil } = await supabase.from('usuarios').insert({
-            id: data.user.id,
-            nombre_completo: nombre,
-            correo,
-            rol: 'cliente',
-            consentimiento_datos_en: new Date().toISOString(),
-          });
-          if (errPerfil) throw errPerfil;
-        }
 
         agregarLog(`Cuenta creada para ${correo}.`);
       } else {
@@ -261,8 +262,41 @@ export default function Ingreso() {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {esCrearCuenta && (
+              <label
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: 8,
+                  fontSize: 11.5,
+                  color: 'var(--marron-tinta)',
+                  lineHeight: 1.4,
+                  order: -1,
+                }}
+              >
+                <input
+                  type="checkbox"
+                  checked={aceptaTerminos}
+                  onChange={(e) => setAceptaTerminos(e.target.checked)}
+                  style={{ marginTop: 2 }}
+                />
+                <span>
+                  Acepto la{' '}
+                  <Link to="/privacidad" target="_blank" style={{ color: 'var(--accion)', fontWeight: 'bold' }}>
+                    Política de Privacidad
+                  </Link>{' '}
+                  y los{' '}
+                  <Link to="/terminos" target="_blank" style={{ color: 'var(--accion)', fontWeight: 'bold' }}>
+                    Términos y Condiciones
+                  </Link>{' '}
+                  de Cumbo — necesario para continuar, por Gmail o por correo.
+                </span>
+              </label>
+            )}
+
             <button
               onClick={continuarConGoogle}
+              disabled={esCrearCuenta && !aceptaTerminos}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -275,7 +309,8 @@ export default function Ingreso() {
                 fontSize: 13,
                 fontWeight: 'bold',
                 color: 'var(--marron-tinta)',
-                cursor: 'pointer',
+                cursor: esCrearCuenta && !aceptaTerminos ? 'not-allowed' : 'pointer',
+                opacity: esCrearCuenta && !aceptaTerminos ? 0.5 : 1,
               }}
             >
               Continuar con Gmail
@@ -350,30 +385,6 @@ export default function Ingreso() {
               >
                 {error}
               </div>
-            )}
-
-            {esCrearCuenta && (
-              <label
-                style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 11.5, color: 'var(--marron-tinta)', lineHeight: 1.4 }}
-              >
-                <input
-                  type="checkbox"
-                  checked={aceptaTerminos}
-                  onChange={(e) => setAceptaTerminos(e.target.checked)}
-                  style={{ marginTop: 2 }}
-                />
-                <span>
-                  Acepto la{' '}
-                  <Link to="/privacidad" target="_blank" style={{ color: 'var(--accion)', fontWeight: 'bold' }}>
-                    Política de Privacidad
-                  </Link>{' '}
-                  y los{' '}
-                  <Link to="/terminos" target="_blank" style={{ color: 'var(--accion)', fontWeight: 'bold' }}>
-                    Términos y Condiciones
-                  </Link>{' '}
-                  de Cumbo.
-                </span>
-              </label>
             )}
 
             <button
