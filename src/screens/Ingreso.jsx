@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Mail, Lock, User, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -22,6 +22,7 @@ export default function Ingreso() {
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(false);
   const [exito, setExito] = useState(false);
+  const [aceptaTerminos, setAceptaTerminos] = useState(false);
   const [log, setLog] = useState([]);
 
   const esCrearCuenta = modo === 'crear';
@@ -39,6 +40,10 @@ export default function Ingreso() {
   async function enviar() {
     if (!correo || !clave || (esCrearCuenta && !nombre)) {
       setError('Completa todos los campos para continuar.');
+      return;
+    }
+    if (esCrearCuenta && !aceptaTerminos) {
+      setError('Debes aceptar la Política de Privacidad y los Términos y Condiciones para crear tu cuenta.');
       return;
     }
     if (!correo.includes('@')) {
@@ -64,6 +69,7 @@ export default function Ingreso() {
             nombre_completo: nombre,
             correo,
             rol: 'cliente',
+            consentimiento_datos_en: new Date().toISOString(),
           });
           if (errPerfil) throw errPerfil;
         }
@@ -344,6 +350,30 @@ export default function Ingreso() {
               >
                 {error}
               </div>
+            )}
+
+            {esCrearCuenta && (
+              <label
+                style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 11.5, color: 'var(--marron-tinta)', lineHeight: 1.4 }}
+              >
+                <input
+                  type="checkbox"
+                  checked={aceptaTerminos}
+                  onChange={(e) => setAceptaTerminos(e.target.checked)}
+                  style={{ marginTop: 2 }}
+                />
+                <span>
+                  Acepto la{' '}
+                  <Link to="/privacidad" target="_blank" style={{ color: 'var(--accion)', fontWeight: 'bold' }}>
+                    Política de Privacidad
+                  </Link>{' '}
+                  y los{' '}
+                  <Link to="/terminos" target="_blank" style={{ color: 'var(--accion)', fontWeight: 'bold' }}>
+                    Términos y Condiciones
+                  </Link>{' '}
+                  de Cumbo.
+                </span>
+              </label>
             )}
 
             <button

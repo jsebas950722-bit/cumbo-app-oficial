@@ -1,5 +1,22 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { BookOpen, MapPin, Users, Store, Sprout, LayoutGrid, Contact, Truck, LogOut, LogIn } from 'lucide-react';
+import {
+  BookOpen,
+  MapPin,
+  Users,
+  Store,
+  Sprout,
+  LayoutGrid,
+  Contact,
+  Truck,
+  LogOut,
+  LogIn,
+  Shield,
+  FileText,
+  Trash2,
+  X,
+} from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
 
 // Pantalla nueva — no estaba en el handoff original ni en el prototipo.
@@ -36,9 +53,26 @@ const ACCESOS_ABIERTOS = [
 
 export default function Perfil() {
   const { sesion, perfil, nombreCompleto, cerrarSesion } = useSesion();
+  const [confirmandoEliminar, setConfirmandoEliminar] = useState(false);
+  const [eliminando, setEliminando] = useState(false);
+  const [errorEliminar, setErrorEliminar] = useState('');
 
   const itemsRol = perfil?.rol ? ITEMS_POR_ROL[perfil.rol] || [] : [];
   const yaTieneAccesoAbierto = (to) => itemsRol.some((i) => i.to === to);
+
+  async function eliminarCuenta() {
+    setEliminando(true);
+    setErrorEliminar('');
+    try {
+      const { data, error } = await supabase.functions.invoke('eliminar-cuenta');
+      if (error || data?.error) throw error || new Error(data.error);
+      await supabase.auth.signOut();
+      window.location.href = '/';
+    } catch (e) {
+      setErrorEliminar('No se pudo eliminar tu cuenta. Intenta de nuevo o escríbenos por WhatsApp.');
+      setEliminando(false);
+    }
+  }
 
   return (
     <div style={{ minHeight: '100vh', background: 'var(--fondo-calido)' }}>
@@ -132,7 +166,100 @@ export default function Perfil() {
             <LogOut size={17} /> Cerrar sesión
           </button>
         )}
+
+        <Seccion titulo="Legal">
+          <ItemPerfil to="/privacidad" label="Política de Privacidad" Icono={Shield} />
+          <ItemPerfil to="/terminos" label="Términos y Condiciones" Icono={FileText} />
+        </Seccion>
+
+        {sesion && (
+          <button
+            onClick={() => setConfirmandoEliminar(true)}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 8,
+              background: 'none',
+              border: 'none',
+              color: '#a3947e',
+              fontSize: 12.5,
+              cursor: 'pointer',
+              padding: '4px 4px 14px',
+            }}
+          >
+            <Trash2 size={15} /> Eliminar mi cuenta
+          </button>
+        )}
       </div>
+
+      {confirmandoEliminar && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'rgba(0,0,0,0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: 20,
+            zIndex: 50,
+          }}
+        >
+          <div style={{ background: 'var(--superficie)', borderRadius: 18, padding: 22, maxWidth: 340, width: '100%' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+              <div style={{ fontWeight: 'bold', fontSize: 15, color: 'var(--marron-tinta)' }}>¿Eliminar tu cuenta?</div>
+              <button
+                onClick={() => setConfirmandoEliminar(false)}
+                style={{ background: 'none', border: 'none', color: 'var(--marron-tinta)', cursor: 'pointer' }}
+              >
+                <X size={20} />
+              </button>
+            </div>
+            <p style={{ fontSize: 13, color: 'var(--marron-tinta)', lineHeight: 1.5, marginBottom: 16 }}>
+              Esto elimina tu cuenta y tus datos personales de forma permanente — incluidas tus fincas o productos publicados, si los
+              tienes. No se puede deshacer. Tu historial de pedidos se conserva de forma anónima por obligación contable, sin datos que te
+              identifiquen.
+            </p>
+            {errorEliminar && <p style={{ fontSize: 12, color: 'var(--canela-oscuro)', marginBottom: 12 }}>{errorEliminar}</p>}
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button
+                onClick={() => setConfirmandoEliminar(false)}
+                style={{
+                  flex: 1,
+                  border: '1px solid rgba(146,97,55,0.25)',
+                  background: 'none',
+                  borderRadius: 9999,
+                  padding: 11,
+                  fontSize: 13,
+                  fontWeight: 'bold',
+                  color: 'var(--marron-tinta)',
+                  cursor: 'pointer',
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={eliminarCuenta}
+                disabled={eliminando}
+                style={{
+                  flex: 1,
+                  border: 'none',
+                  background: 'var(--canela-oscuro)',
+                  color: '#fff',
+                  borderRadius: 9999,
+                  padding: 11,
+                  fontSize: 13,
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                  opacity: eliminando ? 0.7 : 1,
+                }}
+              >
+                {eliminando ? 'Eliminando…' : 'Sí, eliminar'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

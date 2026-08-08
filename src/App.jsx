@@ -16,6 +16,8 @@ import DirectorioCaficultores from './screens/DirectorioCaficultores';
 import Logistica from './screens/Logistica';
 import MisPedidos from './screens/MisPedidos';
 import Perfil from './screens/Perfil';
+import PoliticaPrivacidad from './screens/PoliticaPrivacidad';
+import TerminosCondiciones from './screens/TerminosCondiciones';
 
 function RutasApp() {
   const { cargando } = useSesion();
@@ -45,6 +47,8 @@ function RutasApp() {
           <Route path="/logistica" element={<Logistica />} />
           <Route path="/mis-pedidos" element={<MisPedidos />} />
           <Route path="/perfil" element={<Perfil />} />
+          <Route path="/privacidad" element={<PoliticaPrivacidad />} />
+          <Route path="/terminos" element={<TerminosCondiciones />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </div>

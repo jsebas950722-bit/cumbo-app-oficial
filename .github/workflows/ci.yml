@@ -24,5 +24,8 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      - name: Pruebas automatizadas
+        run: npm run test
+
       - name: Compilar (con variables de entorno de ejemplo)
         run: cp .env.example .env && npm run build

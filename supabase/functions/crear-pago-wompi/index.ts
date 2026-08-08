@@ -58,6 +58,17 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Este pedido no te pertenece' }), { status: 403, headers: corsHeaders });
     }
 
+    // Mismo límite básico contra abuso que en crear-preferencia-pago.
+    const haceUnMinuto = new Date(Date.now() - 60_000).toISOString();
+    const { count: pedidosRecientes } = await supabase
+      .from('pedidos')
+      .select('*', { count: 'exact', head: true })
+      .eq('cliente_id', user.id)
+      .gte('fecha', haceUnMinuto);
+    if ((pedidosRecientes || 0) > 8) {
+      return new Response(JSON.stringify({ error: 'Demasiados intentos. Espera un momento y vuelve a intentar.' }), { status: 429, headers: corsHeaders });
+    }
+
     // Wompi cobra en centavos — $45.000 COP = 4500000.
     const amountInCents = Math.round(Number(pedido.total) * 100);
     const currency = 'COP';

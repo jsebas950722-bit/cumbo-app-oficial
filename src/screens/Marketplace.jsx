@@ -4,6 +4,7 @@ import { ArrowLeft, ShoppingCart, Search, Star, Coffee, X, MapPin, CreditCard } 
 import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
 import { useCarrito } from '../context/CarritoContext';
+import { CIUDAD_BASE, TAMANOS, esCiudadBase, tarifasParaCiudad, precioConTamano, formatoCOP } from '../lib/tarifas';
 
 // Migrado desde: "Marketplace Cumbo.dc.html"
 // Cambios respecto al prototipo:
@@ -24,12 +25,6 @@ const CATEGORIAS = [
   { id: 'accesorios', label: 'Accesorios' },
 ];
 
-const TAMANOS = [
-  { valor: 'Libra', label: 'Libra (454g)', factor: 1 },
-  { valor: 'Media libra', label: 'Media libra (250g)', factor: 0.58 },
-  { valor: 'Cápsulas', label: 'Cápsulas', factor: 0.8 },
-];
-
 const METODOS_LISTA = ['V60', 'Chemex', 'Prensa francesa', 'Moka', 'Cafetera', 'Cápsulas'];
 const TIPOS_ACCESORIO = ['Todos', 'Pocillos y jarras', 'Molinos', 'Básculas', 'Filtros y empaques', 'Otros'];
 
@@ -44,39 +39,9 @@ const TIPOS_ACCESORIO = ['Todos', 'Pocillos y jarras', 'Molinos', 'Básculas', '
 // Cumbo despacha desde Bogotá. Dentro de la ciudad, mensajería urbana
 // (Yango/Didi, mismo día); fuera de la ciudad, transportadora nacional.
 // Tarifas ESTIMADAS de referencia — todavía no hay cotización en vivo
-// conectada a ninguna API real (ver README).
-const CIUDAD_BASE = 'Bogotá';
-
-const TARIFAS_URBANAS = [
-  { id: 'yango', transportadora: 'Yango', costo: 9000, tiempo: 'Mismo día', nota: 'Mensajería urbana' },
-  { id: 'didi', transportadora: 'Didi', costo: 9500, tiempo: 'Mismo día', nota: 'Mensajería urbana' },
-];
-
-const TARIFAS_NACIONALES = [
-  { id: 'interrapidisimo', transportadora: 'Interrapidísimo', costo: 13000, tiempo: '3-5 días hábiles', nota: 'Mejor cobertura rural' },
-  { id: 'coordinadora', transportadora: 'Coordinadora', costo: 15000, tiempo: '2-4 días hábiles', nota: 'Buen balance costo/tiempo' },
-  { id: 'servientrega', transportadora: 'Servientrega', costo: 17000, tiempo: '1-3 días hábiles', nota: 'Mayor cobertura y trazabilidad' },
-];
-
-function normalizarCiudad(texto) {
-  return (texto || '')
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .trim();
-}
-
-function esCiudadBase(ciudad) {
-  return normalizarCiudad(ciudad) === normalizarCiudad(CIUDAD_BASE);
-}
-
-function tarifasParaCiudad(ciudad) {
-  return esCiudadBase(ciudad) ? TARIFAS_URBANAS : TARIFAS_NACIONALES;
-}
-
-function formatoCOP(n) {
-  return '$' + Math.round(n).toLocaleString('es-CO');
-}
+// conectada a ninguna API real (ver README). La lógica de tarifas y
+// precios ya no vive acá — se extrajo a src/lib/tarifas.js para poder
+// probarla con pruebas automatizadas reales (ver tarifas.test.js).
 
 export default function Marketplace() {
   const navigate = useNavigate();
@@ -138,11 +103,6 @@ export default function Marketplace() {
     setProductosMetodo(data.filter((p) => p.tipo === 'metodo_preparacion'));
     setProductosAccesorio(data.filter((p) => p.tipo === 'accesorio'));
     setCargando(false);
-  }
-
-  function precioConTamano(precioBase, tamano) {
-    const factor = (TAMANOS.find((t) => t.valor === tamano) || TAMANOS[0]).factor;
-    return Math.round((precioBase * factor) / 500) * 500;
   }
 
   function agregarCafeAlCarrito(producto) {

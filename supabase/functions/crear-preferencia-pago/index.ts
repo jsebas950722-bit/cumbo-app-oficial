@@ -62,6 +62,20 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Este pedido no te pertenece' }), { status: 403, headers: corsHeaders });
     }
 
+    // Límite básico contra abuso: si este usuario generó más de 8
+    // pedidos en el último minuto, algo no está bien (bot, error de la
+    // app, o alguien probando a explotar la función) — se frena acá en
+    // vez de dejar pasar llamadas ilimitadas a la API de Mercado Pago.
+    const haceUnMinuto = new Date(Date.now() - 60_000).toISOString();
+    const { count: pedidosRecientes } = await supabase
+      .from('pedidos')
+      .select('*', { count: 'exact', head: true })
+      .eq('cliente_id', user.id)
+      .gte('fecha', haceUnMinuto);
+    if ((pedidosRecientes || 0) > 8) {
+      return new Response(JSON.stringify({ error: 'Demasiados intentos. Espera un momento y vuelve a intentar.' }), { status: 429, headers: corsHeaders });
+    }
+
     const items = (pedido.pedido_items || []).map((it: any) => ({
       title: it.productos?.nombre || 'Producto Cumbo',
       quantity: it.cantidad,

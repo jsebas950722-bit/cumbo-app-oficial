@@ -1,4 +1,5 @@
 import { Component } from 'react';
+import { reportarError } from '../lib/sentry';
 
 // Sin esto, si CUALQUIER pantalla lanza un error de JS no controlado
 // (por ejemplo, un dato inesperado que venga de Supabase), React
@@ -18,6 +19,7 @@ export default class ErrorBoundary extends Component {
 
   componentDidCatch(error, info) {
     console.error('Error no controlado en la app:', error, info);
+    reportarError(error);
   }
 
   render() {

@@ -449,24 +449,20 @@ function TabContenido() {
       const faqLimpio = faq.filter((f) => f.pregunta.trim());
       const videosLimpios = videos.filter((v) => v.trim());
 
-      await supabase
-        .from('contenido_app')
-        .upsert({
-          clave: 'home_faq',
-          tipo: 'faq',
-          valor: faqLimpio,
-          actualizado_por: sesion.user.id,
-          actualizado_en: new Date().toISOString(),
-        });
-      await supabase
-        .from('contenido_app')
-        .upsert({
-          clave: 'home_videos',
-          tipo: 'videos',
-          valor: videosLimpios,
-          actualizado_por: sesion.user.id,
-          actualizado_en: new Date().toISOString(),
-        });
+      await supabase.from('contenido_app').upsert({
+        clave: 'home_faq',
+        tipo: 'faq',
+        valor: faqLimpio,
+        actualizado_por: sesion.user.id,
+        actualizado_en: new Date().toISOString(),
+      });
+      await supabase.from('contenido_app').upsert({
+        clave: 'home_videos',
+        tipo: 'videos',
+        valor: videosLimpios,
+        actualizado_por: sesion.user.id,
+        actualizado_en: new Date().toISOString(),
+      });
 
       await supabase.from('eventos_log').insert({
         entidad: 'contenido_app',
