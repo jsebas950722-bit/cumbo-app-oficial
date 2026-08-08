@@ -22,6 +22,7 @@ export default [
         FileReader: 'readonly',
         Image: 'readonly',
         SpeechSynthesisUtterance: 'readonly',
+        alert: 'readonly',
       },
     },
     settings: { react: { version: 'detect' } },

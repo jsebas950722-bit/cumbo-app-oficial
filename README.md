@@ -339,6 +339,47 @@ lo que ya estaba anotado como pendiente en este README.
    producción:
    `https://TU_PROJECT_REF.supabase.co/functions/v1/webhook-wompi`
 
+## Devoluciones (derecho de retracto y garantía)
+
+Flujo real de punta a punta: el cliente solicita desde **Mis Pedidos**
+(solo disponible en pedidos ya entregados), el CEO aprueba o rechaza
+desde **Panel Cumbo → Devoluciones**, y al aprobar se intenta el
+reembolso real contra la pasarela que se usó para pagar.
+
+**Esto NO funciona igual en las dos pasarelas, y la app no lo esconde:**
+
+- **Mercado Pago** tiene una API de reembolso self-service completa
+  (`POST /v1/payments/{id}/refunds`), funciona hasta 90 días después
+  del pago — se automatiza de punta a punta.
+- **Wompi solo permite anular una transacción el mismo día**, antes de
+  que se liquide. Pasados ese punto — el caso normal, porque las
+  devoluciones se piden días después de la compra — **Wompi no tiene
+  una API de reembolso propia**: hay que pedirlo a su soporte
+  manualmente (WhatsApp +57 322 2804391 o su formulario), con el ID de
+  la transacción. Cuando pasa esto, la solicitud queda marcada como
+  "requiere gestión manual" con el ID exacto que necesitás darle a
+  soporte — la app no finge que se resolvió sola.
+
+### Secret adicional que esto necesita
+
+```bash
+supabase secrets set WOMPI_PRIVATE_KEY=priv_...
+```
+
+Es la llave **privada** de Wompi (distinta de la pública que ya
+configuraste) — la necesita el endpoint de anulación
+(`/transactions/{id}/void`), que a diferencia del checkout exige la
+llave privada, no la pública.
+
+### Desplegar la función
+
+```bash
+supabase functions deploy procesar-devolucion
+```
+
+Y correr `cumbo_schema` hasta la migración de devoluciones (ver
+`supabase/migrations/`).
+
 5. **Correr `cumbo_schema_wompi.sql`** (agrega `wompi_transaction_id` y
    `pasarela_pago` a `pedidos`).
 

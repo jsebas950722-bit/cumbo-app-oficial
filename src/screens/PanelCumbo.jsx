@@ -94,6 +94,7 @@ export default function PanelCumbo() {
           { id: 'pedidos', label: 'Pedidos' },
           { id: 'resumen', label: 'Resumen' },
           { id: 'contenido', label: 'Contenido' },
+          { id: 'devoluciones', label: 'Devoluciones' },
         ].map((t) => (
           <button
             key={t.id}
@@ -120,6 +121,7 @@ export default function PanelCumbo() {
         {tab === 'pedidos' && <TabPedidos />}
         {tab === 'resumen' && <TabResumen />}
         {tab === 'contenido' && <TabContenido />}
+        {tab === 'devoluciones' && <TabDevoluciones />}
       </div>
     </div>
   );
@@ -794,3 +796,155 @@ const botonAccion = {
   fontWeight: 'bold',
   cursor: 'pointer',
 };
+
+// ================= DEVOLUCIONES =================
+// El cliente solicita desde Mis Pedidos (ver MisPedidos.jsx). Acá el
+// CEO aprueba o rechaza. Al aprobar, se llama a la Edge Function
+// procesar-devolucion, que intenta el reembolso real — automático en
+// Mercado Pago, con aviso de gestión manual en Wompi si la transacción
+// ya se liquidó (Wompi no tiene API de reembolso post-liquidación).
+
+const ETIQUETA_ESTADO_DEVOLUCION = {
+  pendiente: 'Pendiente de revisión',
+  aprobada: 'Aprobada — procesando',
+  rechazada: 'Rechazada',
+  reembolsada: 'Reembolsada',
+  reembolso_manual_pendiente: 'Requiere gestión manual',
+};
+
+function TabDevoluciones() {
+  const [solicitudes, setSolicitudes] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [procesando, setProcesando] = useState('');
+  const [notaRechazo, setNotaRechazo] = useState({});
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    const { data } = await supabase
+      .from('solicitudes_devolucion')
+      .select('*, pedidos(id, total, transportadora), usuarios(nombre_completo, correo)')
+      .order('fecha_solicitud', { ascending: false });
+    setSolicitudes(data || []);
+    setCargando(false);
+  }
+
+  async function aprobar(solicitud) {
+    setProcesando(solicitud.id);
+    const { data, error } = await supabase.functions.invoke('procesar-devolucion', { body: { solicitud_id: solicitud.id } });
+    if (error) {
+      alert('No se pudo procesar la devolución. Intenta de nuevo.');
+    } else if (data?.estado === 'reembolso_manual_pendiente') {
+      alert(`Atención — requiere que lo gestiones tú manualmente:\n\n${data.nota}`);
+    }
+    setProcesando('');
+    cargar();
+  }
+
+  async function rechazar(solicitud) {
+    setProcesando(solicitud.id);
+    await supabase
+      .from('solicitudes_devolucion')
+      .update({
+        estado: 'rechazada',
+        notas_ceo: notaRechazo[solicitud.id] || 'Sin motivo especificado.',
+        fecha_resolucion: new Date().toISOString(),
+      })
+      .eq('id', solicitud.id);
+    setProcesando('');
+    cargar();
+  }
+
+  if (cargando) return <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>;
+  if (solicitudes.length === 0)
+    return (
+      <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>
+        No hay solicitudes de devolución todavía.
+      </p>
+    );
+
+  return (
+    <div>
+      {solicitudes.map((s) => (
+        <div key={s.id} style={tarjeta}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+            <div style={{ fontWeight: 'bold', fontSize: 13.5, color: 'var(--marron-tinta)' }}>Pedido #{s.pedido_id.slice(0, 8)}</div>
+            <span
+              style={{
+                fontSize: 10,
+                fontWeight: 'bold',
+                color: '#fff',
+                borderRadius: 9999,
+                padding: '3px 10px',
+                background:
+                  s.estado === 'reembolsada'
+                    ? 'var(--exito)'
+                    : s.estado === 'rechazada'
+                      ? 'var(--canela-oscuro)'
+                      : s.estado === 'reembolso_manual_pendiente'
+                        ? '#b8860b'
+                        : 'var(--tierra-kraft)',
+              }}
+            >
+              {ETIQUETA_ESTADO_DEVOLUCION[s.estado]}
+            </span>
+          </div>
+          <div style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)', marginBottom: 6 }}>
+            {s.usuarios?.nombre_completo || 'Cliente'} · {s.tipo === 'retracto' ? 'Derecho de retracto' : 'Garantía'} · Total del pedido:{' '}
+            {formatoCOP(s.pedidos?.total || 0)}
+          </div>
+          <div
+            style={{
+              fontSize: 12.5,
+              color: 'var(--marron-tinta)',
+              background: 'var(--fondo-calido)',
+              borderRadius: 10,
+              padding: '8px 10px',
+              marginBottom: 8,
+            }}
+          >
+            {s.motivo}
+          </div>
+
+          {s.estado === 'pendiente' && (
+            <>
+              <textarea
+                placeholder="Nota si vas a rechazar (opcional)"
+                value={notaRechazo[s.id] || ''}
+                onChange={(e) => setNotaRechazo((prev) => ({ ...prev, [s.id]: e.target.value }))}
+                style={{
+                  width: '100%',
+                  border: '1px solid rgba(146,97,55,0.25)',
+                  borderRadius: 10,
+                  padding: 8,
+                  fontSize: 12,
+                  marginBottom: 8,
+                  minHeight: 44,
+                }}
+              />
+              <div style={{ display: 'flex', gap: 8 }}>
+                <button onClick={() => aprobar(s)} disabled={procesando === s.id} style={{ ...botonAccion, background: 'var(--exito)' }}>
+                  <CheckCircle size={14} /> Aprobar y reembolsar
+                </button>
+                <button
+                  onClick={() => rechazar(s)}
+                  disabled={procesando === s.id}
+                  style={{ ...botonAccion, background: 'var(--canela-oscuro)' }}
+                >
+                  <XCircle size={14} /> Rechazar
+                </button>
+              </div>
+            </>
+          )}
+
+          {s.notas_ceo && s.estado !== 'pendiente' && (
+            <div style={{ fontSize: 11, color: 'var(--cafe-oscuro)', marginTop: 4 }}>Nota: {s.notas_ceo}</div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}

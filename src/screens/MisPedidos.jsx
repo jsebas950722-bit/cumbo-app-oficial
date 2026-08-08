@@ -26,6 +26,14 @@ const ETIQUETA_ESTADO = {
   devolucion: 'Devolución',
 };
 
+const ETIQUETA_DEVOLUCION = {
+  pendiente: 'En revisión',
+  aprobada: 'Aprobada — procesando',
+  rechazada: 'Rechazada',
+  reembolsada: 'Reembolsada',
+  reembolso_manual_pendiente: 'Aprobada — el reembolso se está gestionando manualmente',
+};
+
 const COLOR_ESTADO = {
   pendiente: 'var(--tierra-kraft)',
   en_revision: 'var(--canela-oscuro)',
@@ -51,6 +59,11 @@ export default function MisPedidos() {
   const [alertasPorPedido, setAlertasPorPedido] = useState({});
   const [cargando, setCargando] = useState(true);
   const [expandidoId, setExpandidoId] = useState('');
+  const [solicitudesDevolucion, setSolicitudesDevolucion] = useState({}); // { [pedido_id]: solicitud }
+  const [formDevolucion, setFormDevolucion] = useState(null); // pedido_id abierto para solicitar
+  const [motivoDevolucion, setMotivoDevolucion] = useState('');
+  const [tipoDevolucion, setTipoDevolucion] = useState('retracto');
+  const [enviandoDevolucion, setEnviandoDevolucion] = useState(false);
 
   useEffect(() => {
     if (sesion) cargar();
@@ -83,8 +96,38 @@ export default function MisPedidos() {
         agrupado[ev.entidad_id].push(ev);
       });
       setAlertasPorPedido(agrupado);
+
+      const { data: devolucionesData } = await supabase
+        .from('solicitudes_devolucion')
+        .select('*')
+        .in(
+          'pedido_id',
+          pedidosData.map((p) => p.id)
+        );
+      const porPedido = {};
+      (devolucionesData || []).forEach((d) => {
+        porPedido[d.pedido_id] = d;
+      });
+      setSolicitudesDevolucion(porPedido);
     }
     setCargando(false);
+  }
+
+  async function enviarSolicitudDevolucion(pedidoId) {
+    if (!motivoDevolucion.trim()) return;
+    setEnviandoDevolucion(true);
+    const { error } = await supabase.from('solicitudes_devolucion').insert({
+      pedido_id: pedidoId,
+      cliente_id: sesion.user.id,
+      tipo: tipoDevolucion,
+      motivo: motivoDevolucion.trim(),
+    });
+    setEnviandoDevolucion(false);
+    if (!error) {
+      setFormDevolucion(null);
+      setMotivoDevolucion('');
+      cargar();
+    }
   }
 
   if (cargandoSesion) return null;
@@ -241,6 +284,116 @@ export default function MisPedidos() {
                     )}
                   </div>
                 )}
+
+                {p.estado === 'entregado' &&
+                  (() => {
+                    const solicitud = solicitudesDevolucion[p.id];
+                    if (solicitud) {
+                      return (
+                        <div
+                          style={{
+                            marginTop: 10,
+                            fontSize: 11.5,
+                            color: 'var(--marron-tinta)',
+                            background: 'var(--fondo-calido)',
+                            borderRadius: 10,
+                            padding: '8px 10px',
+                          }}
+                        >
+                          Solicitud de devolución: <strong>{ETIQUETA_DEVOLUCION[solicitud.estado]}</strong>
+                          {solicitud.notas_ceo && <div style={{ marginTop: 4, color: 'var(--cafe-oscuro)' }}>{solicitud.notas_ceo}</div>}
+                        </div>
+                      );
+                    }
+                    if (formDevolucion === p.id) {
+                      return (
+                        <div style={{ marginTop: 10 }}>
+                          <select
+                            value={tipoDevolucion}
+                            onChange={(e) => setTipoDevolucion(e.target.value)}
+                            style={{
+                              width: '100%',
+                              border: '1px solid rgba(146,97,55,0.25)',
+                              borderRadius: 10,
+                              padding: 8,
+                              fontSize: 12,
+                              marginBottom: 6,
+                            }}
+                          >
+                            <option value="retracto">Ya no lo quiero (derecho de retracto)</option>
+                            <option value="garantia">Llegó dañado o incorrecto (garantía)</option>
+                          </select>
+                          <textarea
+                            value={motivoDevolucion}
+                            onChange={(e) => setMotivoDevolucion(e.target.value)}
+                            placeholder="Cuéntanos qué pasó"
+                            style={{
+                              width: '100%',
+                              border: '1px solid rgba(146,97,55,0.25)',
+                              borderRadius: 10,
+                              padding: 8,
+                              fontSize: 12,
+                              minHeight: 50,
+                              marginBottom: 6,
+                            }}
+                          />
+                          <div style={{ display: 'flex', gap: 8 }}>
+                            <button
+                              onClick={() => setFormDevolucion(null)}
+                              style={{
+                                flex: 1,
+                                border: '1px solid rgba(146,97,55,0.25)',
+                                background: 'none',
+                                borderRadius: 999,
+                                padding: 9,
+                                fontSize: 12,
+                                color: 'var(--marron-tinta)',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              onClick={() => enviarSolicitudDevolucion(p.id)}
+                              disabled={enviandoDevolucion || !motivoDevolucion.trim()}
+                              style={{
+                                flex: 1,
+                                border: 'none',
+                                background: 'var(--accion)',
+                                color: '#fff',
+                                borderRadius: 999,
+                                padding: 9,
+                                fontSize: 12,
+                                fontWeight: 'bold',
+                                cursor: 'pointer',
+                                opacity: enviandoDevolucion || !motivoDevolucion.trim() ? 0.6 : 1,
+                              }}
+                            >
+                              {enviandoDevolucion ? 'Enviando…' : 'Enviar solicitud'}
+                            </button>
+                          </div>
+                        </div>
+                      );
+                    }
+                    return (
+                      <button
+                        onClick={() => setFormDevolucion(p.id)}
+                        style={{
+                          display: 'block',
+                          marginTop: 10,
+                          background: 'none',
+                          border: 'none',
+                          color: 'var(--accion)',
+                          fontSize: 11.5,
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          padding: 0,
+                        }}
+                      >
+                        Solicitar devolución
+                      </button>
+                    );
+                  })()}
               </div>
             );
           })
