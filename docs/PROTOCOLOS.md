@@ -113,7 +113,7 @@ corregidos:
 | Protocolo | Estado | Detalle |
 |---|---|---|
 | Atención al cliente | ✅ | Chat flotante de WhatsApp (**falta que pongas el número real**) |
-| Proceso de devoluciones/reembolsos | ⚠️ | El derecho de retracto ya está documentado en los Términos, pero todavía no hay un flujo en la app que gestione una devolución de punta a punta (solicitud → aprobación → reembolso real vía la pasarela) |
+| Proceso de devoluciones/reembolsos | ✅ | Flujo real de punta a punta: solicitud del cliente → aprobación del CEO → reembolso automático en Mercado Pago, o aviso de gestión manual con el ID exacto en Wompi (Wompi no tiene API de reembolso post-liquidación, no es un límite de la app) |
 | Plan de recuperación ante desastres | ❌ | Sigue sin documentar — depende de qué plan de Supabase tengas |
 | Documentación para nuevos desarrolladores | ✅ | README + este documento |
 
