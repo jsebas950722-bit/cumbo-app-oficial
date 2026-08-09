@@ -786,3 +786,26 @@ no construidas todavía):**
 - Fase 4 — Video por transcripción y avatares para Cumbo Academy. El
   propio documento recomienda validar demanda real antes de invertir
   acá — no se construyó a propósito.
+
+### Fase 2 del documento: Motor visual (estilo Canva/Firefly)
+
+**Esto es distinto a la generación de imágenes con Gemini** (que sigue
+existiendo para piezas del embudo) — acá son **plantillas
+deterministas**: mismo layout y colores de marca reales cada vez, se
+llenan con datos reales del vendedor. No usan ninguna API de IA, así
+que no gastan del límite mensual del plan.
+
+- **`src/lib/plantillasEstudio.js`** — 4 plantillas renderizadas con
+  Canvas del navegador, con el Brand Kit real de Cumbo (colores de
+  `theme.css`, logo real): oferta semanal, nueva finca en Cumbo
+  Origen, cita de catación, anuncio de Cumbo Academy.
+- Cada plantilla se llena con datos reales — el producto o la finca
+  que el vendedor ya tiene cargados, no texto de relleno.
+- Vista previa en vivo mientras se edita, descarga como PNG, y se
+  guarda en el bucket `estudio-imagenes`.
+
+**Lo que del documento sigue sin construir de la Fase 2:** la edición
+fotográfica segura estilo Firefly (retocar fondo/luz de fotos reales
+de finca/catación sin generar personas sintéticas) — es una pieza
+aparte, más delicada por la regla explícita del documento de nunca
+generar imágenes sintéticas de personas reales.

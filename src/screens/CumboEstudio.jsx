@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -12,9 +12,18 @@ import {
   Eye,
   HeartHandshake,
   ShoppingCart,
+  LayoutTemplate,
+  Download,
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
+import {
+  generarPlantillaOfertaSemanal,
+  generarPlantillaNuevaFinca,
+  generarPlantillaCitaCatacion,
+  generarPlantillaAcademy,
+  canvasABlob,
+} from '../lib/plantillasEstudio';
 
 // Cumbo Estudio 2.0 — a pedido: ahora es una herramienta de embudo de
 // conversión completo, no un generador de posts sueltos. El vendedor
@@ -53,6 +62,12 @@ export default function CumboEstudio() {
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(true);
   const [enVivo, setEnVivo] = useState(false);
+  const [misProductos, setMisProductos] = useState([]);
+  const [misFincas, setMisFincas] = useState([]);
+  const [plantillaActiva, setPlantillaActiva] = useState('oferta_semanal');
+  const [datosPlantilla, setDatosPlantilla] = useState({});
+  const [generandoPlantilla, setGenerandoPlantilla] = useState(false);
+  const canvasRef = useRef(null);
 
   useEffect(() => {
     if (!sesion) return;
@@ -86,13 +101,76 @@ export default function CumboEstudio() {
   }, [sesion]);
 
   async function cargar() {
-    const [{ data: sus }, { data: hist }] = await Promise.all([
+    const [{ data: sus }, { data: hist }, { data: productos }, { data: fincas }] = await Promise.all([
       supabase.from('suscripciones_estudio').select('*').eq('vendedor_id', sesion.user.id).maybeSingle(),
       supabase.from('contenido_marketing').select('*').eq('vendedor_id', sesion.user.id).order('fecha_creacion', { ascending: false }),
+      supabase.from('productos').select('id, nombre, precio').eq('vendedor_id', sesion.user.id).eq('activo', true),
+      supabase
+        .from('fincas')
+        .select('id, nombre_finca, region, altitud_msnm, proceso')
+        .eq('caficultor_id', sesion.user.id)
+        .eq('estado', 'validada'),
     ]);
     setSuscripcion(sus || { plan: 'chispa', usos_este_mes: 0 });
     setHistorial(hist || []);
+    setMisProductos(productos || []);
+    setMisFincas(fincas || []);
     setCargando(false);
+  }
+
+  async function renderizarPlantilla() {
+    let canvas;
+    if (plantillaActiva === 'oferta_semanal') {
+      const p = misProductos.find((x) => x.id === datosPlantilla.productoId) || {};
+      canvas = await generarPlantillaOfertaSemanal({
+        nombreProducto: p.nombre || 'Tu producto',
+        precio: p.precio || 0,
+        region: datosPlantilla.region || '',
+      });
+    } else if (plantillaActiva === 'nueva_finca') {
+      const f = misFincas.find((x) => x.id === datosPlantilla.fincaId) || {};
+      canvas = await generarPlantillaNuevaFinca({
+        nombreFinca: f.nombre_finca || 'Tu finca',
+        region: f.region || '',
+        altitud: f.altitud_msnm || '',
+        proceso: f.proceso || '',
+      });
+    } else if (plantillaActiva === 'cita_catacion') {
+      canvas = await generarPlantillaCitaCatacion({
+        cita: datosPlantilla.cita || 'Escribe una cita real…',
+        autor: datosPlantilla.autor || '',
+      });
+    } else {
+      canvas = await generarPlantillaAcademy({ tituloLeccion: datosPlantilla.titulo || 'Título de la lección' });
+    }
+    const canvasVisible = canvasRef.current;
+    canvasVisible.width = canvas.width;
+    canvasVisible.height = canvas.height;
+    canvasVisible.getContext('2d').drawImage(canvas, 0, 0);
+    return canvas;
+  }
+
+  useEffect(() => {
+    if (!cargando) renderizarPlantilla();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [plantillaActiva, datosPlantilla, cargando]);
+
+  async function descargarPlantilla() {
+    setGenerandoPlantilla(true);
+    try {
+      const canvas = await renderizarPlantilla();
+      const blob = await canvasABlob(canvas);
+      const ruta = `${sesion.user.id}/plantilla-${plantillaActiva}-${Date.now()}.png`;
+      await supabase.storage.from('estudio-imagenes').upload(ruta, blob, { contentType: 'image/png' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `cumbo-${plantillaActiva}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setGenerandoPlantilla(false);
+    }
   }
 
   async function generar() {
@@ -346,6 +424,166 @@ export default function CumboEstudio() {
             }}
           >
             {generando ? 'Diseñando tu embudo…' : 'Generar embudo de conversión'}
+          </button>
+        </div>
+
+        <div style={{ background: 'var(--superficie)', borderRadius: 16, padding: 16, marginBottom: 14 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 13,
+              fontWeight: 'bold',
+              color: 'var(--marron-tinta)',
+              marginBottom: 4,
+            }}
+          >
+            <LayoutTemplate size={15} color="var(--accion)" /> Piezas visuales (Brand Kit)
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--cafe-oscuro)', margin: '0 0 10px' }}>
+            Plantillas con tus colores y logo reales — mismo diseño cada vez, se llenan con tus datos reales. No usan IA, por eso no gastan
+            de tu plan mensual.
+          </p>
+
+          <select
+            value={plantillaActiva}
+            onChange={(e) => {
+              setPlantillaActiva(e.target.value);
+              setDatosPlantilla({});
+            }}
+            style={{
+              width: '100%',
+              border: '1px solid rgba(146,97,55,0.25)',
+              borderRadius: 10,
+              padding: '8px 10px',
+              fontSize: 12.5,
+              marginBottom: 10,
+            }}
+          >
+            <option value="oferta_semanal">Oferta semanal</option>
+            <option value="nueva_finca">Nueva finca en Cumbo Origen</option>
+            <option value="cita_catacion">Cita de catación</option>
+            <option value="academy">Anuncio de Cumbo Academy</option>
+          </select>
+
+          {plantillaActiva === 'oferta_semanal' && (
+            <>
+              <select
+                value={datosPlantilla.productoId || ''}
+                onChange={(e) => setDatosPlantilla({ productoId: e.target.value })}
+                style={{
+                  width: '100%',
+                  border: '1px solid rgba(146,97,55,0.25)',
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                  fontSize: 12.5,
+                  marginBottom: 10,
+                }}
+              >
+                <option value="">Elige uno de tus productos…</option>
+                {misProductos.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.nombre}
+                  </option>
+                ))}
+              </select>
+            </>
+          )}
+
+          {plantillaActiva === 'nueva_finca' && (
+            <select
+              value={datosPlantilla.fincaId || ''}
+              onChange={(e) => setDatosPlantilla({ fincaId: e.target.value })}
+              style={{
+                width: '100%',
+                border: '1px solid rgba(146,97,55,0.25)',
+                borderRadius: 10,
+                padding: '8px 10px',
+                fontSize: 12.5,
+                marginBottom: 10,
+              }}
+            >
+              <option value="">Elige una de tus fincas validadas…</option>
+              {misFincas.map((f) => (
+                <option key={f.id} value={f.id}>
+                  {f.nombre_finca}
+                </option>
+              ))}
+            </select>
+          )}
+
+          {plantillaActiva === 'cita_catacion' && (
+            <>
+              <textarea
+                value={datosPlantilla.cita || ''}
+                onChange={(e) => setDatosPlantilla({ ...datosPlantilla, cita: e.target.value })}
+                placeholder="Escribe una cita real (de una catación, de un cliente, de un caficultor)"
+                style={{
+                  width: '100%',
+                  border: '1px solid rgba(146,97,55,0.25)',
+                  borderRadius: 10,
+                  padding: 8,
+                  fontSize: 12.5,
+                  minHeight: 50,
+                  marginBottom: 8,
+                }}
+              />
+              <input
+                value={datosPlantilla.autor || ''}
+                onChange={(e) => setDatosPlantilla({ ...datosPlantilla, autor: e.target.value })}
+                placeholder="Autor de la cita (opcional)"
+                style={{
+                  width: '100%',
+                  border: '1px solid rgba(146,97,55,0.25)',
+                  borderRadius: 10,
+                  padding: '8px 10px',
+                  fontSize: 12.5,
+                  marginBottom: 10,
+                }}
+              />
+            </>
+          )}
+
+          {plantillaActiva === 'academy' && (
+            <input
+              value={datosPlantilla.titulo || ''}
+              onChange={(e) => setDatosPlantilla({ titulo: e.target.value })}
+              placeholder="Título de la lección"
+              style={{
+                width: '100%',
+                border: '1px solid rgba(146,97,55,0.25)',
+                borderRadius: 10,
+                padding: '8px 10px',
+                fontSize: 12.5,
+                marginBottom: 10,
+              }}
+            />
+          )}
+
+          <canvas ref={canvasRef} style={{ width: '100%', borderRadius: 12, marginBottom: 10, background: '#eee' }} />
+
+          <button
+            onClick={descargarPlantilla}
+            disabled={generandoPlantilla}
+            style={{
+              width: '100%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: 6,
+              background: 'var(--accion)',
+              color: '#fff',
+              border: 'none',
+              padding: 11,
+              borderRadius: 9999,
+              fontSize: 12.5,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              opacity: generandoPlantilla ? 0.6 : 1,
+            }}
+          >
+            <Download size={14} /> Descargar imagen
           </button>
         </div>
 

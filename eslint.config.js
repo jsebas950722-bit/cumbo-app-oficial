@@ -25,6 +25,7 @@ export default [
         alert: 'readonly',
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
+        URL: 'readonly',
       },
     },
     settings: { react: { version: 'detect' } },
