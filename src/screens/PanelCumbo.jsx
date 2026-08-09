@@ -97,6 +97,7 @@ export default function PanelCumbo() {
           { id: 'contenido', label: 'Contenido' },
           { id: 'devoluciones', label: 'Devoluciones' },
           { id: 'whatsapp', label: 'WhatsApp' },
+          { id: 'estudio', label: 'Cumbo Estudio' },
         ].map((t) => (
           <button
             key={t.id}
@@ -125,6 +126,7 @@ export default function PanelCumbo() {
         {tab === 'contenido' && <TabContenido />}
         {tab === 'devoluciones' && <TabDevoluciones />}
         {tab === 'whatsapp' && <TabWhatsApp />}
+        {tab === 'estudio' && <TabEstudio />}
       </div>
     </div>
   );
@@ -1136,6 +1138,79 @@ function TabWhatsApp() {
                 </button>
               </div>
             )}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ================= CUMBO ESTUDIO (asignar planes) =================
+// Cobrar la suscripción recurrente automáticamente es una pieza
+// aparte, todavía no construida (necesitaría cobros recurrentes con
+// Mercado Pago/Wompi). Por ahora, el vendedor paga por fuera y el CEO
+// le asigna el plan acá manualmente.
+
+const NOMBRE_PLAN_ESTUDIO = { chispa: 'Chispa', cosecha: 'Cosecha', finca_completa: 'Finca Completa' };
+const LIMITE_PLAN_ESTUDIO = { chispa: 3, cosecha: 15, finca_completa: 50 };
+
+function TabEstudio() {
+  const [suscripciones, setSuscripciones] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [guardando, setGuardando] = useState('');
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    const { data } = await supabase
+      .from('suscripciones_estudio')
+      .select('*, usuarios(nombre_completo, correo)')
+      .order('actualizado_en', { ascending: false });
+    setSuscripciones(data || []);
+    setCargando(false);
+  }
+
+  async function cambiarPlan(vendedorId, nuevoPlan) {
+    setGuardando(vendedorId);
+    await supabase.from('suscripciones_estudio').update({ plan: nuevoPlan }).eq('vendedor_id', vendedorId);
+    setGuardando('');
+    cargar();
+  }
+
+  if (cargando) return <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>;
+
+  return (
+    <div>
+      <p style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)', marginBottom: 12 }}>
+        Esto asigna el plan manualmente — el cobro recurrente automático todavía no está construido. El vendedor paga por fuera y vos le
+        asignás el plan acá.
+      </p>
+      {suscripciones.length === 0 ? (
+        <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Nadie usó Cumbo Estudio todavía.</p>
+      ) : (
+        suscripciones.map((s) => (
+          <div key={s.vendedor_id} style={tarjeta}>
+            <div style={{ fontWeight: 'bold', fontSize: 13, color: 'var(--marron-tinta)' }}>
+              {s.usuarios?.nombre_completo || 'Vendedor'}
+            </div>
+            <div style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)', marginBottom: 10 }}>
+              {s.usuarios?.correo} · {s.usos_este_mes}/{LIMITE_PLAN_ESTUDIO[s.plan]} usados este mes
+            </div>
+            <select
+              value={s.plan}
+              onChange={(e) => cambiarPlan(s.vendedor_id, e.target.value)}
+              disabled={guardando === s.vendedor_id}
+              style={{ border: '1px solid rgba(146,97,55,0.25)', borderRadius: 10, padding: '8px 10px', fontSize: 12.5, width: '100%' }}
+            >
+              {Object.entries(NOMBRE_PLAN_ESTUDIO).map(([valor, nombre]) => (
+                <option key={valor} value={valor}>
+                  {nombre} ({LIMITE_PLAN_ESTUDIO[valor]}/mes)
+                </option>
+              ))}
+            </select>
           </div>
         ))
       )}

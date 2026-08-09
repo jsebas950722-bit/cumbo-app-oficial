@@ -659,14 +659,42 @@ Todo lo que quedó deliberadamente afuera durante la migración, agrupado
 porque varios ítems comparten la misma pieza de infraestructura que
 falta:
 
-1. **Cumbo Estudio** — no es una pantalla que faltara migrar, es un
-   módulo aparte de tu ecosistema (con sus propios tiers de suscripción)
-   que todavía no se ha empezado a construir. Ahora es el siguiente
-   bloqueante más importante — pago, transportadora y las funciones de
-   IA ya están resueltos.
-2. **Modelador financiero de Panel Cumbo** — competencia de precios,
+1. **Modelador financiero de Panel Cumbo** — competencia de precios,
    estacionalidad, ranking de marcas socias, facturación DIAN. Es
-   inteligencia de negocio, no bloquea nada operativo.
-3. **Correo transaccional** (SendGrid/Resend, ya estaba en tu stack
+   inteligencia de negocio, no bloquea nada operativo. Ahora es el
+   siguiente ítem más grande — Cumbo Estudio ya está construido.
+2. **Correo transaccional** (SendGrid/Resend, ya estaba en tu stack
    recomendado) — confirmación de pedidos, notificaciones de validación
    de finca, etc.
+
+## Cumbo Estudio
+
+Generador de contenido de marketing con IA para caficultores y
+vendedores, con planes de uso mensual (**Chispa, Cosecha, Finca
+Completa** — nombres ya definidos en la Constitución del Ecosistema).
+
+**Bug real encontrado al construir esto:** `contenido_marketing` tenía
+RLS activado desde el primer esquema, pero **cero políticas** — el
+mismo patrón exacto que ya habíamos corregido en `usuarios`. Con RLS
+activado y sin ninguna policy, Postgres deniega todo por defecto:
+nadie podía leer ni escribir ahí, ni siquiera el CEO, desde el día 1.
+Nadie lo había notado porque Cumbo Estudio nunca se había construido
+hasta ahora. Corregido en la migración `20260101002200_cumbo_estudio.sql`.
+
+- **`supabase/functions/generar-contenido-estudio`** — genera un
+  calendario de varias piezas (día/plataforma/guion) sobre un tema,
+  usando ÚNICAMENTE los productos/fincas reales del vendedor — nunca
+  contenido genérico o inventado. Respeta el límite mensual de su plan
+  y se reinicia solo cada mes.
+- **`/cumbo-estudio`** (nueva pantalla, accesible desde Perfil) — el
+  vendedor ve su plan, cuánto lleva usado, genera contenido nuevo, y
+  ve su historial.
+- **Panel Cumbo → Cumbo Estudio** (pestaña nueva) — el CEO asigna el
+  plan de cada vendedor manualmente.
+
+**Lo que esto NO hace todavía (siendo honesto sobre el alcance):**
+controla el *límite de uso*, no el *cobro* — cobrar la suscripción
+recurrente automáticamente cada mes según el plan es una pieza aparte
+(necesitaría suscripciones recurrentes con Mercado Pago/Wompi, que no
+son lo mismo que un cobro único). Por ahora, el vendedor paga por
+fuera y el CEO le asigna el plan desde Panel Cumbo.

@@ -15,6 +15,7 @@ import {
   FileText,
   Trash2,
   X,
+  Sparkles,
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
@@ -135,6 +136,11 @@ export default function Perfil() {
             .map((i) => (
               <ItemPerfil key={i.to} {...i} />
             ))}
+          <ItemPerfil
+            to={sesion ? '/cumbo-estudio' : '/ingreso?next=/cumbo-estudio'}
+            label="Cumbo Estudio (marketing con IA)"
+            Icono={Sparkles}
+          />
         </Seccion>
 
         {perfil?.rol && ['ceo', 'logistica'].includes(perfil.rol) && (
