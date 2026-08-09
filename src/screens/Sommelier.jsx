@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Mic, Volume2, VolumeX, CheckCircle2 } from 'lucide-react';
+import { ArrowLeft, Sparkles, Mic, Volume2, VolumeX, CheckCircle2, Send, ShoppingBag } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
 
@@ -353,7 +353,11 @@ export default function Sommelier() {
   const [tab, setTab] = useState('sommelier'); // 'sommelier' | 'calculadora' | 'regiones'
 
   // --- Quiz ---
-  const [fase, setFase] = useState('intro'); // 'intro' | 'preguntas' | 'resultado'
+  const [fase, setFase] = useState('intro'); // 'intro' | 'preguntas' | 'resultado' | 'chat'
+  const [mensajesChat, setMensajesChat] = useState([]);
+  const [textoChat, setTextoChat] = useState('');
+  const [enviandoChat, setEnviandoChat] = useState(false);
+  const [productoRecomendado, setProductoRecomendado] = useState(null);
   const [paso, setPaso] = useState(0);
   const [scores, setScores] = useState(SCORES_INICIALES);
   const [escuchando, setEscuchando] = useState(false);
@@ -394,6 +398,34 @@ export default function Sommelier() {
     setScores(SCORES_INICIALES);
     setProductosRecomendados([]);
     setGuardadoPerfil(false);
+    setMensajesChat([]);
+    setProductoRecomendado(null);
+  }
+
+  async function enviarMensajeChat() {
+    if (!textoChat.trim() || enviandoChat) return;
+    const nuevosMensajes = [...mensajesChat, { rol: 'usuario', texto: textoChat.trim() }];
+    setMensajesChat(nuevosMensajes);
+    setTextoChat('');
+    setEnviandoChat(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('sommelier-chat', { body: { mensajes: nuevosMensajes } });
+      if (error || data?.error) {
+        setMensajesChat((prev) => [...prev, { rol: 'cumbito', texto: 'No pude responder justo ahora — intenta de nuevo en un momento.' }]);
+      } else {
+        setMensajesChat((prev) => [...prev, { rol: 'cumbito', texto: data.texto }]);
+        if (data.producto_recomendado_id) {
+          const { data: producto } = await supabase
+            .from('productos')
+            .select('id, nombre, precio, fincas(region, proceso)')
+            .eq('id', data.producto_recomendado_id)
+            .single();
+          setProductoRecomendado(producto || null);
+        }
+      }
+    } finally {
+      setEnviandoChat(false);
+    }
   }
 
   function toggleEscucha() {
@@ -552,6 +584,19 @@ export default function Sommelier() {
                   Empezar
                 </button>
                 <button
+                  onClick={() => setFase('chat')}
+                  className="cumbo-btn"
+                  style={{
+                    ...botonPrimario,
+                    background: 'none',
+                    border: '1.5px solid var(--accion)',
+                    color: 'var(--accion)',
+                    marginTop: 8,
+                  }}
+                >
+                  O cuéntame en tus palabras
+                </button>
+                <button
                   onClick={() => setVozActiva((v) => !v)}
                   style={{
                     display: 'inline-flex',
@@ -622,6 +667,110 @@ export default function Sommelier() {
                     <Mic size={14} /> {escuchando ? 'Escuchando…' : 'Responder por voz'}
                   </button>
                 )}
+              </div>
+            )}
+
+            {fase === 'chat' && (
+              <div style={{ background: '#fff', borderRadius: 20, padding: 18, display: 'flex', flexDirection: 'column', height: 420 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+                  <button
+                    onClick={reiniciar}
+                    style={{ background: 'none', border: 'none', color: 'var(--cafe-oscuro)', cursor: 'pointer', display: 'flex' }}
+                  >
+                    <ArrowLeft size={16} />
+                  </button>
+                  <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)' }}>Cuéntale a Cumbito</div>
+                </div>
+
+                <div style={{ flex: 1, overflowY: 'auto', marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 8 }}>
+                  {mensajesChat.length === 0 && (
+                    <div style={{ fontSize: 12.5, color: 'var(--cafe-oscuro)', textAlign: 'center', marginTop: 20 }}>
+                      Contale qué te gusta: ¿café suave o intenso? ¿con notas frutales, dulces o achocolatadas? ¿cómo lo preparás?
+                    </div>
+                  )}
+                  {mensajesChat.map((m, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        alignSelf: m.rol === 'usuario' ? 'flex-end' : 'flex-start',
+                        maxWidth: '80%',
+                        background: m.rol === 'usuario' ? 'var(--accion)' : 'var(--fondo-calido)',
+                        color: m.rol === 'usuario' ? '#fff' : 'var(--marron-tinta)',
+                        borderRadius: 14,
+                        padding: '9px 12px',
+                        fontSize: 13,
+                      }}
+                    >
+                      {m.texto}
+                    </div>
+                  ))}
+                  {enviandoChat && <div style={{ fontSize: 12, color: 'var(--cafe-oscuro)' }}>Cumbito está pensando…</div>}
+
+                  {productoRecomendado && (
+                    <div style={{ background: 'var(--accion-suave)', borderRadius: 14, padding: 12, marginTop: 4 }}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 6,
+                          fontSize: 12.5,
+                          fontWeight: 'bold',
+                          color: 'var(--marron-tinta)',
+                          marginBottom: 4,
+                        }}
+                      >
+                        <ShoppingBag size={14} /> {productoRecomendado.nombre}
+                      </div>
+                      <div style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)', marginBottom: 8 }}>
+                        {productoRecomendado.fincas?.region} · {productoRecomendado.fincas?.proceso} · ${productoRecomendado.precio}
+                      </div>
+                      <Link
+                        to="/marketplace"
+                        style={{
+                          display: 'inline-block',
+                          background: 'var(--accion)',
+                          color: '#fff',
+                          borderRadius: 999,
+                          padding: '8px 16px',
+                          fontSize: 12,
+                          fontWeight: 'bold',
+                          textDecoration: 'none',
+                        }}
+                      >
+                        Ver en el Marketplace
+                      </Link>
+                    </div>
+                  )}
+                </div>
+
+                <div style={{ display: 'flex', gap: 8 }}>
+                  <input
+                    value={textoChat}
+                    onChange={(e) => setTextoChat(e.target.value)}
+                    onKeyDown={(e) => e.key === 'Enter' && enviarMensajeChat()}
+                    placeholder="Escribe acá…"
+                    style={{ flex: 1, border: '1px solid rgba(146,97,55,0.25)', borderRadius: 999, padding: '10px 14px', fontSize: 13 }}
+                  />
+                  <button
+                    onClick={enviarMensajeChat}
+                    disabled={enviandoChat || !textoChat.trim()}
+                    style={{
+                      background: 'var(--accion)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: 38,
+                      height: 38,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: 'pointer',
+                      opacity: enviandoChat || !textoChat.trim() ? 0.5 : 1,
+                    }}
+                  >
+                    <Send size={16} />
+                  </button>
+                </div>
               </div>
             )}
 
