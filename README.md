@@ -540,6 +540,27 @@ necesitaba leer ese log de verdad. Corregido en
 eventos (o los de su propia finca), y el equipo Cumbo/logística sigue
 viendo todo como antes.
 
+## Agente de triage de devoluciones
+
+Analiza el historial real del cliente y el plazo legal antes de que
+aprebes o rechaces una solicitud en Panel Cumbo → Devoluciones.
+
+- **Historial real**: cuántos pedidos tiene el cliente en total,
+  cuántas devoluciones pidió antes y cómo se resolvieron — para
+  detectar patrones que ameriten más atención.
+- **Plazo legal calculado de verdad**: cuenta los días hábiles reales
+  desde que el pedido se marcó como entregado (usando el evento real
+  de `eventos_log`, no una estimación) hasta la solicitud — informativo
+  sobre el derecho de retracto (Ley 1480/2011, 5 días hábiles), nunca
+  un rechazo automático si se pasó, porque puede haber excepciones
+  razonables.
+- **Nunca decide solo** — no toca `solicitudes_devolucion.estado`. Es
+  el mismo patrón que los otros agentes: riesgo + hallazgos +
+  recomendación, la aprobación o el rechazo siguen siendo un botón que
+  aprietas vos.
+
+`supabase/functions/analizar-devolucion`.
+
 ## Agente de conciliación de pagos
 
 Compara lo que dicen de verdad Mercado Pago y Wompi contra

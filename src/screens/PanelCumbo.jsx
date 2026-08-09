@@ -909,10 +909,21 @@ function TabDevoluciones() {
   const [cargando, setCargando] = useState(true);
   const [procesando, setProcesando] = useState('');
   const [notaRechazo, setNotaRechazo] = useState({});
+  const [analisisPorSolicitud, setAnalisisPorSolicitud] = useState({});
+  const [analizando, setAnalizando] = useState('');
 
   useEffect(() => {
     cargar();
   }, []);
+
+  async function analizarSolicitud(id) {
+    setAnalizando(id);
+    const { data, error: errFn } = await supabase.functions.invoke('analizar-devolucion', { body: { solicitud_id: id } });
+    if (!errFn && !data?.error) {
+      setAnalisisPorSolicitud((prev) => ({ ...prev, [id]: data }));
+    }
+    setAnalizando('');
+  }
 
   async function cargar() {
     setCargando(true);
@@ -1003,6 +1014,75 @@ function TabDevoluciones() {
 
           {s.estado === 'pendiente' && (
             <>
+              {!analisisPorSolicitud[s.id] ? (
+                <button
+                  onClick={() => analizarSolicitud(s.id)}
+                  disabled={analizando === s.id}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 5,
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--accion)',
+                    fontSize: 11.5,
+                    fontWeight: 'bold',
+                    cursor: 'pointer',
+                    padding: 0,
+                    marginBottom: 10,
+                  }}
+                >
+                  <Sparkles size={13} /> {analizando === s.id ? 'Analizando…' : 'Analizar con IA antes de decidir'}
+                </button>
+              ) : (
+                <div
+                  style={{
+                    background: 'var(--accion-suave)',
+                    borderRadius: 10,
+                    padding: '8px 10px',
+                    fontSize: 11.5,
+                    color: 'var(--marron-tinta)',
+                    marginBottom: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      display: 'inline-flex',
+                      fontWeight: 'bold',
+                      color: '#fff',
+                      background:
+                        analisisPorSolicitud[s.id].riesgo === 'alto'
+                          ? 'var(--canela-oscuro)'
+                          : analisisPorSolicitud[s.id].riesgo === 'medio'
+                            ? '#b8860b'
+                            : 'var(--exito)',
+                      borderRadius: 999,
+                      padding: '2px 10px',
+                      fontSize: 10,
+                      marginBottom: 5,
+                    }}
+                  >
+                    Riesgo {analisisPorSolicitud[s.id].riesgo}
+                  </div>
+                  {analisisPorSolicitud[s.id].dias_habiles_desde_entrega !== null && (
+                    <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)' }}>
+                      {analisisPorSolicitud[s.id].dias_habiles_desde_entrega} días hábiles desde la entrega
+                    </div>
+                  )}
+                  {analisisPorSolicitud[s.id].hallazgos?.length > 0 && (
+                    <ul style={{ margin: '4px 0', paddingLeft: 16 }}>
+                      {analisisPorSolicitud[s.id].hallazgos.map((h, i) => (
+                        <li key={i}>{h}</li>
+                      ))}
+                    </ul>
+                  )}
+                  <div style={{ fontWeight: 'bold', marginTop: 4 }}>{analisisPorSolicitud[s.id].recomendacion}</div>
+                  <div style={{ fontSize: 10, color: 'var(--cafe-oscuro)', marginTop: 4 }}>
+                    Lectura de apoyo — la decisión sigue siendo siempre tuya.
+                  </div>
+                </div>
+              )}
+
               <textarea
                 placeholder="Nota si vas a rechazar (opcional)"
                 value={notaRechazo[s.id] || ''}
