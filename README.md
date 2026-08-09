@@ -537,6 +537,49 @@ necesitaba leer ese log de verdad. Corregido en
 eventos (o los de su propia finca), y el equipo Cumbo/logística sigue
 viendo todo como antes.
 
+## Agente de conciliación de pagos
+
+Compara lo que dicen de verdad Mercado Pago y Wompi contra
+`pedidos.pago_confirmado` — detecta si un webhook falló en silencio en
+algún momento (era un hueco real marcado desde la primera auditoría de
+protocolos).
+
+**La regla de autonomía, explicada porque importa:** esto toca dinero,
+así que no tiene la misma libertad que el Sommelier o el generador de
+contenido.
+- Si la pasarela confirma un pago que localmente no estaba
+  confirmado → **se corrige solo**. No es una decisión nueva, es
+  terminar el trabajo que el webhook debería haber hecho.
+- Si la pasarela dice que algo se rechazó o reembolsó pero localmente
+  sigue como pagado → **nunca se corrige solo** — ese pedido puede ya
+  estar despachado, así que queda marcado como "urgente" en
+  **Panel Cumbo → Conciliación de pagos** para que decidas vos.
+
+- **`supabase/functions/conciliar-pagos`** — revisa los pedidos de los
+  últimos 30 días con id de pago real, y compara contra la API de cada
+  pasarela.
+- Se puede llamar de dos formas: con tu sesión de CEO (botón
+  "Conciliar ahora" en Panel Cumbo), o con un secret compartido
+  (`CRON_SECRET`) para programarlo automático.
+
+### Programarlo automático (opcional)
+
+Necesita la extensión `pg_cron` habilitada en tu proyecto
+(Dashboard → Database → Extensions). Los pasos y el SQL exacto están
+comentados en la migración `20260101002600_conciliacion_pagos.sql` —
+descomentalos y completá tu `project_ref` y la llave. Si no la
+habilitás, el botón manual sigue funcionando igual.
+
+### Secret adicional
+
+```bash
+supabase secrets set CRON_SECRET=$(openssl rand -hex 32)
+```
+
+Usá ese mismo valor en el header `X-Cron-Secret` si programás la
+llamada desde afuera de Supabase (ej: un cron externo en vez de
+`pg_cron`).
+
 ## Infraestructura de desarrollo
 
 > **Ver también:** [`docs/PROTOCOLOS.md`](./docs/PROTOCOLOS.md) —

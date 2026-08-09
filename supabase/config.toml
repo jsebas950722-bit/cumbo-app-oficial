@@ -22,3 +22,6 @@ verify_jwt = false
 
 [functions.clic-contenido-estudio]
 verify_jwt = false
+
+[functions.conciliar-pagos]
+verify_jwt = false

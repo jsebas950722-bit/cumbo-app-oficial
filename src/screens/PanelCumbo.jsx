@@ -101,6 +101,7 @@ export default function PanelCumbo() {
           { id: 'whatsapp', label: 'WhatsApp' },
           { id: 'estudio', label: 'Cumbo Estudio' },
           { id: 'voz-marca', label: 'Voz de marca' },
+          { id: 'conciliacion', label: 'Conciliación de pagos' },
         ].map((t) => (
           <button
             key={t.id}
@@ -131,6 +132,7 @@ export default function PanelCumbo() {
         {tab === 'whatsapp' && <TabWhatsApp />}
         {tab === 'estudio' && <TabEstudio />}
         {tab === 'voz-marca' && <TabVozMarca />}
+        {tab === 'conciliacion' && <TabConciliacion />}
       </div>
     </div>
   );
@@ -1463,6 +1465,172 @@ function TabVozMarca() {
               </button>
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--marron-tinta)' }}>{e.contenido}</div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ================= CONCILIACIÓN DE PAGOS (agente) =================
+// Compara lo que dicen de verdad Mercado Pago/Wompi contra lo que
+// dice `pedidos.pago_confirmado` — detecta si un webhook falló en
+// silencio en algún momento. Corrige solo (y lo marca 'resuelto')
+// cuando la pasarela confirma un pago que localmente no lo estaba —
+// eso es terminar un trabajo que el webhook debería haber hecho. Si
+// la pasarela dice que algo se rechazó/reembolsó pero localmente
+// sigue como pagado, NUNCA lo corrige solo — ese pedido puede ya
+// estar despachado, así que queda marcado como 'urgente' para que lo
+// resuelvas vos.
+
+const ETIQUETA_SEVERIDAD = { info: 'Informativo', atencion: 'Atención', urgente: 'Urgente' };
+const COLOR_SEVERIDAD = { info: 'var(--cafe-oscuro)', atencion: '#b8860b', urgente: 'var(--canela-oscuro)' };
+
+function TabConciliacion() {
+  const [discrepancias, setDiscrepancias] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [conciliando, setConciliando] = useState(false);
+  const [ultimoResultado, setUltimoResultado] = useState(null);
+  const [soloUrgentes, setSoloUrgentes] = useState(true);
+
+  useEffect(() => {
+    cargar();
+
+    const canal = supabase
+      .channel('conciliacion-pagos')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'discrepancias_pago' }, () => cargar())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canal);
+    };
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    const { data } = await supabase
+      .from('discrepancias_pago')
+      .select('*, pedidos(total, cliente_id)')
+      .order('fecha', { ascending: false })
+      .limit(50);
+    setDiscrepancias(data || []);
+    setCargando(false);
+  }
+
+  async function conciliarAhora() {
+    setConciliando(true);
+    setUltimoResultado(null);
+    const { data, error } = await supabase.functions.invoke('conciliar-pagos');
+    setConciliando(false);
+    if (error || data?.error) {
+      setUltimoResultado({ error: true, mensaje: data?.error || 'No se pudo conciliar en este momento.' });
+    } else {
+      setUltimoResultado({ error: false, ...data });
+      cargar();
+    }
+  }
+
+  async function marcarResuelto(id) {
+    await supabase.from('discrepancias_pago').update({ resuelto: true }).eq('id', id);
+    cargar();
+  }
+
+  const visibles = soloUrgentes ? discrepancias.filter((d) => !d.resuelto && d.severidad === 'urgente') : discrepancias;
+
+  return (
+    <div>
+      <p style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)', marginBottom: 12 }}>
+        Compara lo que dicen Mercado Pago y Wompi contra tu base de datos real. Corrige solo cuando la pasarela confirma un pago que acá no
+        estaba confirmado — el resto queda marcado para que lo decidas vos, porque puede ya estar despachado.
+      </p>
+
+      <button
+        onClick={conciliarAhora}
+        disabled={conciliando}
+        style={{
+          width: '100%',
+          background: 'var(--accion)',
+          color: '#fff',
+          border: 'none',
+          padding: 12,
+          borderRadius: 9999,
+          fontSize: 13,
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          opacity: conciliando ? 0.6 : 1,
+          marginBottom: 10,
+        }}
+      >
+        {conciliando ? 'Conciliando…' : 'Conciliar ahora'}
+      </button>
+
+      {ultimoResultado && (
+        <div
+          style={{
+            fontSize: 12,
+            padding: '9px 12px',
+            borderRadius: 10,
+            marginBottom: 12,
+            background: ultimoResultado.error ? '#fdf3e6' : 'var(--accion-suave)',
+            color: ultimoResultado.error ? 'var(--canela-oscuro)' : 'var(--marron-tinta)',
+          }}
+        >
+          {ultimoResultado.error
+            ? ultimoResultado.mensaje
+            : `Revisados ${ultimoResultado.revisados} pedidos — ${ultimoResultado.discrepanciasEncontradas} discrepancias, ${ultimoResultado.corregidosAutomaticamente} corregidas solas.`}
+        </div>
+      )}
+
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--marron-tinta)', marginBottom: 12 }}>
+        <input type="checkbox" checked={soloUrgentes} onChange={(e) => setSoloUrgentes(e.target.checked)} />
+        Mostrar solo urgentes sin resolver
+      </label>
+
+      {cargando ? (
+        <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>
+      ) : visibles.length === 0 ? (
+        <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>
+          {soloUrgentes ? 'Nada urgente pendiente.' : 'Sin discrepancias registradas todavía.'}
+        </p>
+      ) : (
+        visibles.map((d) => (
+          <div key={d.id} style={tarjeta}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 'bold',
+                  color: '#fff',
+                  background: COLOR_SEVERIDAD[d.severidad],
+                  borderRadius: 999,
+                  padding: '3px 10px',
+                }}
+              >
+                {ETIQUETA_SEVERIDAD[d.severidad]}
+              </span>
+              <span style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', textTransform: 'uppercase' }}>{d.pasarela}</span>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--marron-tinta)', marginBottom: 6 }}>{d.detalle}</div>
+            <div style={{ fontSize: 11, color: 'var(--cafe-oscuro)', marginBottom: 8 }}>
+              Pedido #{d.pedido_id.slice(0, 8)} · Total: {formatoCOP(d.pedidos?.total || 0)}
+            </div>
+            {!d.resuelto && (
+              <button
+                onClick={() => marcarResuelto(d.id)}
+                style={{
+                  background: 'none',
+                  border: '1px solid rgba(146,97,55,0.25)',
+                  borderRadius: 999,
+                  padding: '6px 14px',
+                  fontSize: 11.5,
+                  fontWeight: 'bold',
+                  color: 'var(--marron-tinta)',
+                  cursor: 'pointer',
+                }}
+              >
+                Marcar como resuelto
+              </button>
+            )}
           </div>
         ))
       )}
