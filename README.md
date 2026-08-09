@@ -394,11 +394,14 @@ tokens de pago.
 
 1. **Generar copy de producto** (CRM Vendedor) — botón "Generar con IA"
    junto a la descripción, a partir del nombre/tipo/calidad ya escritos.
-2. **Clasificar calidad del café por foto** (Panel Cumbo) — lectura de
-   apoyo con visión de Claude sobre la foto del grano, antes de validar
-   una finca. Marcado explícitamente como asistencia, no como
-   certificación real — la calidad de taza se determina catando
-   (protocolo SCA), no con una foto.
+2. **Validación de fincas asistida** (Panel Cumbo) — reemplazó a la
+   versión anterior que solo miraba la foto del grano. Ahora analiza
+   foto de cultivo + foto de grano + si los datos declarados (altitud,
+   humedad, proceso) son coherentes entre sí y con la región — y da
+   una recomendación de riesgo (bajo/medio/alto) con hallazgos
+   concretos. Marcado explícitamente como asistencia, no como
+   certificación real — nunca cambia `fincas.estado` por sí sola, la
+   decisión de validar o rechazar sigue siendo siempre del CEO.
 3. **Chat conversacional del Sommelier** — alternativa al quiz de 5
    preguntas (que sigue existiendo tal cual). Siempre recibe el
    catálogo real de café en stock y solo puede recomendar de esa

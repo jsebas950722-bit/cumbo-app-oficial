@@ -152,15 +152,15 @@ function TabFichas() {
     cargar();
   }, []);
 
-  async function analizarGrano(finca) {
+  async function analizarFinca(finca) {
     setAnalizando(finca.id);
-    const { data, error: errFn } = await supabase.functions.invoke('clasificar-calidad-cafe', {
-      body: { foto_grano_url: finca.certificacion_foto_grano },
+    const { data, error: errFn } = await supabase.functions.invoke('analizar-finca-validacion', {
+      body: { finca_id: finca.id },
     });
     if (!errFn && !data?.error) {
       setAnalisisPorFinca((prev) => ({ ...prev, [finca.id]: data }));
     } else {
-      setError('No se pudo analizar la foto del grano. Intenta de nuevo.');
+      setError(data?.error || 'No se pudo analizar la finca. Intenta de nuevo.');
     }
     setAnalizando(null);
   }
@@ -261,11 +261,11 @@ function TabFichas() {
               )}
             </div>
 
-            {f.certificacion_foto_grano && (
+            {(f.certificacion_foto_cultivo || f.certificacion_foto_grano) && (
               <div style={{ marginBottom: 10 }}>
                 {!analisisPorFinca[f.id] ? (
                   <button
-                    onClick={() => analizarGrano(f)}
+                    onClick={() => analizarFinca(f)}
                     disabled={analizando === f.id}
                     style={{
                       display: 'flex',
@@ -280,7 +280,7 @@ function TabFichas() {
                       padding: 0,
                     }}
                   >
-                    <Sparkles size={13} /> {analizando === f.id ? 'Analizando foto del grano…' : 'Analizar foto del grano con IA'}
+                    <Sparkles size={13} /> {analizando === f.id ? 'Analizando finca…' : 'Analizar con IA antes de decidir'}
                   </button>
                 ) : (
                   <div
@@ -292,15 +292,35 @@ function TabFichas() {
                       color: 'var(--marron-tinta)',
                     }}
                   >
-                    <div style={{ fontWeight: 'bold', marginBottom: 3 }}>
-                      Lectura de apoyo de la IA (confianza: {analisisPorFinca[f.id].confianza})
+                    <div
+                      style={{
+                        display: 'inline-flex',
+                        fontWeight: 'bold',
+                        color: '#fff',
+                        background:
+                          analisisPorFinca[f.id].riesgo === 'alto'
+                            ? 'var(--canela-oscuro)'
+                            : analisisPorFinca[f.id].riesgo === 'medio'
+                              ? '#b8860b'
+                              : 'var(--exito)',
+                        borderRadius: 999,
+                        padding: '2px 10px',
+                        fontSize: 10,
+                        marginBottom: 5,
+                      }}
+                    >
+                      Riesgo {analisisPorFinca[f.id].riesgo}
                     </div>
-                    <div>{analisisPorFinca[f.id].resumen}</div>
-                    {analisisPorFinca[f.id].defectos_visibles?.length > 0 && (
-                      <div style={{ marginTop: 3 }}>Defectos visibles: {analisisPorFinca[f.id].defectos_visibles.join(', ')}</div>
+                    {analisisPorFinca[f.id].hallazgos?.length > 0 && (
+                      <ul style={{ margin: '4px 0', paddingLeft: 16 }}>
+                        {analisisPorFinca[f.id].hallazgos.map((h, i) => (
+                          <li key={i}>{h}</li>
+                        ))}
+                      </ul>
                     )}
+                    <div style={{ fontWeight: 'bold', marginTop: 4 }}>{analisisPorFinca[f.id].recomendacion}</div>
                     <div style={{ fontSize: 10, color: 'var(--cafe-oscuro)', marginTop: 4 }}>
-                      Esto es una lectura de apoyo, no reemplaza la catación real — úsala solo como referencia antes de decidir.
+                      Esto es una lectura de apoyo, no reemplaza la verificación real — la decisión de validar o rechazar es siempre tuya.
                     </div>
                   </div>
                 )}
