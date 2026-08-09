@@ -582,21 +582,19 @@ Todo lo que quedó deliberadamente afuera durante la migración, agrupado
 porque varios ítems comparten la misma pieza de infraestructura que
 falta:
 
-1. **Integración con una transportadora o agregador real** (Servientrega,
-   Coordinadora, etc.) — para cotizar tarifas y rastrear en vivo dentro
-   de la app, en vez de solo enlazar al sitio de cada una. Ahora es el
-   siguiente bloqueante más importante — el pago real ya está resuelto.
-2. **Función de backend con la API de Claude** (Supabase Edge Function) —
+1. **Función de backend con la API de Claude** (Supabase Edge Function) —
    la necesitan tres cosas que hoy son manuales: clasificación de calidad
    por foto y generación de copy en CRM Vendedor, y cualquier IA de Cumbo
    Estudio. El prototipo las llamaba directo desde el navegador con
    `window.claude.complete`, que solo existe en el entorno de prototipado.
-3. **Cumbo Estudio** — no es una pantalla que faltara migrar, es un
+   Ahora es el siguiente bloqueante más importante — el pago real y la
+   transportadora ya están resueltos.
+2. **Cumbo Estudio** — no es una pantalla que faltara migrar, es un
    módulo aparte de tu ecosistema (con sus propios tiers de suscripción)
    que todavía no se ha empezado a construir.
-4. **Modelador financiero de Panel Cumbo** — competencia de precios,
+3. **Modelador financiero de Panel Cumbo** — competencia de precios,
    estacionalidad, ranking de marcas socias, facturación DIAN. Es
    inteligencia de negocio, no bloquea nada operativo.
-5. **Correo transaccional** (SendGrid/Resend, ya estaba en tu stack
+4. **Correo transaccional** (SendGrid/Resend, ya estaba en tu stack
    recomendado) — confirmación de pedidos, notificaciones de validación
    de finca, etc.
