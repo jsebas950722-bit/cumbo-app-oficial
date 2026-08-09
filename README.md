@@ -809,3 +809,29 @@ fotográfica segura estilo Firefly (retocar fondo/luz de fotos reales
 de finca/catación sin generar personas sintéticas) — es una pieza
 aparte, más delicada por la regla explícita del documento de nunca
 generar imágenes sintéticas de personas reales.
+
+### Fase 2.2: edición fotográfica segura (estilo Firefly)
+
+La pieza más delicada de todo el documento — su regla es explícita:
+"nunca generar imágenes sintéticas de personas reales (caficultores,
+catadores) — solo edición de fotografía real existente". Esto no se
+tradujo en un párrafo de instrucciones nada más, se hizo cumplir en el
+propio código:
+
+1. **No hay prompt libre.** El vendedor elige uno de 4 ajustes
+   acotados (mejorar luz, difuminar fondo, recorte cuadrado, tono
+   cálido) — con opciones fijas, no existe la posibilidad de escribir
+   "reemplazá a la persona" o algo por el estilo.
+2. **Es edición imagen-a-imagen, no generación desde texto.** La foto
+   real (`certificacion_foto_cultivo` o `certificacion_foto_grano`,
+   las que ya subió el caficultor) se manda como entrada a Gemini
+   junto con la instrucción — nunca se genera una escena nueva desde
+   cero.
+3. **El prompt exige conservar cualquier persona exactamente como
+   está** — mismo rostro, mismo cuerpo, sin alterar ni generar a
+   nadie — en los 4 ajustes, sin excepción, sin importar cuál elija
+   el vendedor.
+
+`supabase/functions/editar-foto-estudio` — recibe la foto real y el
+ajuste, guarda el resultado en `estudio-imagenes`, y registra el
+evento en `eventos_log` para que quede trazabilidad de qué se editó.

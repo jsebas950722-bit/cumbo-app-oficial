@@ -68,6 +68,10 @@ export default function CumboEstudio() {
   const [datosPlantilla, setDatosPlantilla] = useState({});
   const [generandoPlantilla, setGenerandoPlantilla] = useState(false);
   const canvasRef = useRef(null);
+  const [fotoSeleccionada, setFotoSeleccionada] = useState('');
+  const [ajusteSeleccionado, setAjusteSeleccionado] = useState('mejorar_luz');
+  const [editandoFoto, setEditandoFoto] = useState(false);
+  const [fotoEditada, setFotoEditada] = useState('');
 
   useEffect(() => {
     if (!sesion) return;
@@ -107,7 +111,7 @@ export default function CumboEstudio() {
       supabase.from('productos').select('id, nombre, precio').eq('vendedor_id', sesion.user.id).eq('activo', true),
       supabase
         .from('fincas')
-        .select('id, nombre_finca, region, altitud_msnm, proceso')
+        .select('id, nombre_finca, region, altitud_msnm, proceso, certificacion_foto_cultivo, certificacion_foto_grano')
         .eq('caficultor_id', sesion.user.id)
         .eq('estado', 'validada'),
     ]);
@@ -218,6 +222,25 @@ export default function CumboEstudio() {
     const piezasActualizadas = contenido.piezas.map((p, i) => (i === indice ? { ...p, estado_editorial: siguiente } : p));
     await supabase.from('contenido_marketing').update({ piezas: piezasActualizadas }).eq('id', contenido.id);
     cargar();
+  }
+
+  async function editarFoto() {
+    if (!fotoSeleccionada) return;
+    setEditandoFoto(true);
+    setError('');
+    setFotoEditada('');
+    try {
+      const { data, error: errFn } = await supabase.functions.invoke('editar-foto-estudio', {
+        body: { foto_url: fotoSeleccionada, tipo_ajuste: ajusteSeleccionado },
+      });
+      if (errFn || data?.error) {
+        setError(data?.error || 'No se pudo editar la foto.');
+      } else {
+        setFotoEditada(data.imagen_url);
+      }
+    } finally {
+      setEditandoFoto(false);
+    }
   }
 
   if (cargandoSesion) return null;
@@ -584,6 +607,108 @@ export default function CumboEstudio() {
             }}
           >
             <Download size={14} /> Descargar imagen
+          </button>
+        </div>
+
+        <div style={{ background: 'var(--superficie)', borderRadius: 16, padding: 16, marginBottom: 14 }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 6,
+              fontSize: 13,
+              fontWeight: 'bold',
+              color: 'var(--marron-tinta)',
+              marginBottom: 4,
+            }}
+          >
+            <ImageIcon size={15} color="var(--accion)" /> Edición fotográfica segura
+          </div>
+          <p style={{ fontSize: 11, color: 'var(--cafe-oscuro)', margin: '0 0 10px' }}>
+            Ajustes sobre tus fotos reales de finca ya certificadas — nunca genera contenido nuevo ni altera personas que aparezcan en la
+            foto.
+          </p>
+
+          <select
+            value={fotoSeleccionada}
+            onChange={(e) => {
+              setFotoSeleccionada(e.target.value);
+              setFotoEditada('');
+            }}
+            style={{
+              width: '100%',
+              border: '1px solid rgba(146,97,55,0.25)',
+              borderRadius: 10,
+              padding: '8px 10px',
+              fontSize: 12.5,
+              marginBottom: 10,
+            }}
+          >
+            <option value="">Elige una de tus fotos reales…</option>
+            {misFincas.flatMap((f) => [
+              f.certificacion_foto_cultivo && (
+                <option key={`${f.id}-cultivo`} value={f.certificacion_foto_cultivo}>
+                  {f.nombre_finca} — foto del cultivo
+                </option>
+              ),
+              f.certificacion_foto_grano && (
+                <option key={`${f.id}-grano`} value={f.certificacion_foto_grano}>
+                  {f.nombre_finca} — foto del grano
+                </option>
+              ),
+            ])}
+          </select>
+
+          <select
+            value={ajusteSeleccionado}
+            onChange={(e) => setAjusteSeleccionado(e.target.value)}
+            style={{
+              width: '100%',
+              border: '1px solid rgba(146,97,55,0.25)',
+              borderRadius: 10,
+              padding: '8px 10px',
+              fontSize: 12.5,
+              marginBottom: 10,
+            }}
+          >
+            <option value="mejorar_luz">Mejorar iluminación</option>
+            <option value="difuminar_fondo">Difuminar fondo</option>
+            <option value="recorte_cuadrado">Recorte cuadrado (Instagram)</option>
+            <option value="tono_calido">Tono cálido</option>
+          </select>
+
+          {fotoSeleccionada && (
+            <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: 10, color: 'var(--cafe-oscuro)', marginBottom: 4 }}>Original</div>
+                <img src={fotoSeleccionada} alt="" style={{ width: '100%', borderRadius: 10 }} />
+              </div>
+              {fotoEditada && (
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontSize: 10, color: 'var(--accion)', marginBottom: 4 }}>Editada</div>
+                  <img src={fotoEditada} alt="" style={{ width: '100%', borderRadius: 10 }} />
+                </div>
+              )}
+            </div>
+          )}
+
+          <button
+            onClick={editarFoto}
+            disabled={editandoFoto || !fotoSeleccionada}
+            style={{
+              width: '100%',
+              background: 'var(--accion)',
+              color: '#fff',
+              border: 'none',
+              padding: 11,
+              borderRadius: 9999,
+              fontSize: 12.5,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              opacity: editandoFoto || !fotoSeleccionada ? 0.6 : 1,
+            }}
+          >
+            {editandoFoto ? 'Editando con Gemini…' : 'Aplicar ajuste'}
           </button>
         </div>
 
