@@ -25,3 +25,6 @@ verify_jwt = false
 
 [functions.conciliar-pagos]
 verify_jwt = false
+
+[functions.monitorear-inventario]
+verify_jwt = false

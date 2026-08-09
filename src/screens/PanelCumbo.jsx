@@ -102,6 +102,7 @@ export default function PanelCumbo() {
           { id: 'estudio', label: 'Cumbo Estudio' },
           { id: 'voz-marca', label: 'Voz de marca' },
           { id: 'conciliacion', label: 'Conciliación de pagos' },
+          { id: 'inventario', label: 'Inventario' },
         ].map((t) => (
           <button
             key={t.id}
@@ -133,6 +134,7 @@ export default function PanelCumbo() {
         {tab === 'estudio' && <TabEstudio />}
         {tab === 'voz-marca' && <TabVozMarca />}
         {tab === 'conciliacion' && <TabConciliacion />}
+        {tab === 'inventario' && <TabInventario />}
       </div>
     </div>
   );
@@ -1731,6 +1733,122 @@ function TabConciliacion() {
                 Marcar como resuelto
               </button>
             )}
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ================= INVENTARIO (agente de monitoreo) =================
+// Cuarto y último agente de la lista priorizada. A diferencia de los
+// otros tres, este no toca dinero ni decide sobre confianza — solo
+// detecta y avisa. Por eso las alertas se insertan/resuelven solas,
+// sin necesitar tu aprobación primero.
+
+const ETIQUETA_TIPO_ALERTA = { stock_bajo: 'Stock bajo', sin_ventas: 'Sin ventas recientes' };
+
+function TabInventario() {
+  const [alertas, setAlertas] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [monitoreando, setMonitoreando] = useState(false);
+  const [ultimoResultado, setUltimoResultado] = useState(null);
+
+  useEffect(() => {
+    cargar();
+
+    const canal = supabase
+      .channel('inventario-ceo')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_inventario' }, () => cargar())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canal);
+    };
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    const { data } = await supabase
+      .from('alertas_inventario')
+      .select('*, productos(nombre, vendedor_id, usuarios(nombre_completo))')
+      .eq('resuelta', false)
+      .order('fecha', { ascending: false });
+    setAlertas(data || []);
+    setCargando(false);
+  }
+
+  async function monitorearAhora() {
+    setMonitoreando(true);
+    setUltimoResultado(null);
+    const { data, error } = await supabase.functions.invoke('monitorear-inventario');
+    setMonitoreando(false);
+    if (error || data?.error) {
+      setUltimoResultado({ error: true, mensaje: data?.error || 'No se pudo monitorear en este momento.' });
+    } else {
+      setUltimoResultado({ error: false, ...data });
+      cargar();
+    }
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)', marginBottom: 12 }}>
+        Detecta stock bajo (5 unidades o menos) y productos activos que no han tenido ventas en 60 días. No toca dinero ni decide nada —
+        solo avisa, así que actualiza las alertas directo, sin pedir tu aprobación primero.
+      </p>
+
+      <button
+        onClick={monitorearAhora}
+        disabled={monitoreando}
+        style={{
+          width: '100%',
+          background: 'var(--accion)',
+          color: '#fff',
+          border: 'none',
+          padding: 12,
+          borderRadius: 9999,
+          fontSize: 13,
+          fontWeight: 'bold',
+          cursor: 'pointer',
+          opacity: monitoreando ? 0.6 : 1,
+          marginBottom: 10,
+        }}
+      >
+        {monitoreando ? 'Monitoreando…' : 'Ejecutar monitoreo ahora'}
+      </button>
+
+      {ultimoResultado && (
+        <div
+          style={{
+            fontSize: 12,
+            padding: '9px 12px',
+            borderRadius: 10,
+            marginBottom: 12,
+            background: ultimoResultado.error ? '#fdf3e6' : 'var(--accion-suave)',
+            color: ultimoResultado.error ? 'var(--canela-oscuro)' : 'var(--marron-tinta)',
+          }}
+        >
+          {ultimoResultado.error
+            ? ultimoResultado.mensaje
+            : `Revisados ${ultimoResultado.productosRevisados} productos — ${ultimoResultado.alertasActivas} alertas activas, ${ultimoResultado.alertasResueltas} resueltas.`}
+        </div>
+      )}
+
+      {cargando ? (
+        <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>
+      ) : alertas.length === 0 ? (
+        <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Sin alertas activas — todo en orden.</p>
+      ) : (
+        alertas.map((a) => (
+          <div key={a.id} style={tarjeta}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 10, fontWeight: 'bold', color: 'var(--accion)', textTransform: 'uppercase' }}>
+                {ETIQUETA_TIPO_ALERTA[a.tipo]}
+              </span>
+              <span style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)' }}>{a.productos?.usuarios?.nombre_completo || 'Vendedor'}</span>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--marron-tinta)' }}>{a.detalle}</div>
           </div>
         ))
       )}

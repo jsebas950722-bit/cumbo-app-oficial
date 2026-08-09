@@ -540,6 +540,31 @@ necesitaba leer ese log de verdad. Corregido en
 eventos (o los de su propia finca), y el equipo Cumbo/logística sigue
 viendo todo como antes.
 
+## Agente de monitoreo de inventario
+
+Cuarto y último de los agentes priorizados. A diferencia de los otros
+tres, este no toca dinero ni decide sobre confianza — solo detecta y
+avisa. Por eso tiene más autonomía: **inserta y resuelve alertas
+directo, sin necesitar tu aprobación primero** — el peor caso de que
+se equivoque es un aviso de menos valor, no una decisión de negocio
+incorrecta.
+
+Detecta dos cosas:
+- **Stock bajo** — 5 unidades o menos en un producto activo.
+- **Sin ventas** — un producto activo, con stock, que existe desde
+  hace más de 60 días y no ha tenido una sola venta en esos 60 días.
+
+**Honestidad sobre el canal de aviso:** no manda WhatsApp — un aviso
+proactivo de este tipo caería en el mismo límite de la ventana de 24
+horas que ya encontramos con la distribución de contenido de Cumbo
+Estudio, y todavía no hay correo transaccional configurado. El aviso
+vive **dentro de la app**: el vendedor lo ve en un banner al entrar a
+CRM Vendedor, y vos lo ves consolidado en **Panel Cumbo → Inventario**.
+
+`supabase/functions/monitorear-inventario` — acepta sesión de CEO
+(botón "Ejecutar monitoreo ahora") o el secret `CRON_SECRET` para
+programarlo con `pg_cron`, mismo patrón que conciliar-pagos.
+
 ## Agente de triage de devoluciones
 
 Analiza el historial real del cliente y el plazo legal antes de que

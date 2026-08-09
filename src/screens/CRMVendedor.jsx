@@ -46,6 +46,7 @@ export default function CRMVendedor() {
   const { sesion, perfil, cargando: cargandoSesion } = useSesion();
   const [tab, setTab] = useState('productos'); // 'productos' | 'ventas'
   const [productos, setProductos] = useState([]);
+  const [alertasInventario, setAlertasInventario] = useState([]);
   const [ventas, setVentas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [form, setForm] = useState(FORM_INICIAL);
@@ -90,6 +91,18 @@ export default function CRMVendedor() {
     const { data } = await supabase.from('productos').select('*').eq('vendedor_id', sesion.user.id).order('nombre');
     setProductos(data || []);
     setCargando(false);
+
+    if (data?.length) {
+      const { data: alertas } = await supabase
+        .from('alertas_inventario')
+        .select('*')
+        .in(
+          'producto_id',
+          data.map((p) => p.id)
+        )
+        .eq('resuelta', false);
+      setAlertasInventario(alertas || []);
+    }
   }
 
   async function cargarVentas() {
@@ -342,6 +355,25 @@ export default function CRMVendedor() {
             </div>
 
             {/* Lista de productos */}
+            {alertasInventario.length > 0 && (
+              <div
+                style={{
+                  background: '#fdf3e6',
+                  border: '1px solid var(--tierra-kraft)',
+                  borderRadius: 12,
+                  padding: '10px 12px',
+                  marginBottom: 12,
+                }}
+              >
+                <div style={{ fontSize: 12, fontWeight: 'bold', color: 'var(--canela-oscuro)', marginBottom: 4 }}>Avisos de inventario</div>
+                {alertasInventario.map((a) => (
+                  <div key={a.id} style={{ fontSize: 11.5, color: 'var(--marron-tinta)' }}>
+                    • {a.detalle}
+                  </div>
+                ))}
+              </div>
+            )}
+
             {cargando ? (
               <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center' }}>Cargando…</p>
             ) : productos.length === 0 ? (
