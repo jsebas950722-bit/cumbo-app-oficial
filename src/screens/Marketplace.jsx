@@ -4,7 +4,7 @@ import { ArrowLeft, ShoppingCart, Search, Star, Coffee, X, MapPin, CreditCard } 
 import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
 import { useCarrito } from '../context/CarritoContext';
-import { CIUDAD_BASE, TAMANOS, esCiudadBase, tarifasParaCiudad, precioConTamano, formatoCOP } from '../lib/tarifas';
+import { CIUDAD_BASE, TAMANOS, DEPARTAMENTOS_COLOMBIA, TARIFAS_URBANAS, esCiudadBase, precioConTamano, formatoCOP } from '../lib/tarifas';
 
 // Migrado desde: "Marketplace Cumbo.dc.html"
 // Cambios respecto al prototipo:
@@ -63,13 +63,71 @@ export default function Marketplace() {
   const [tipoAccesorioActivo, setTipoAccesorioActivo] = useState('Todos');
 
   const [carritoAbierto, setCarritoAbierto] = useState(false);
-  const [direccionEntrega, setDireccionEntrega] = useState('');
+  const [calleEntrega, setCalleEntrega] = useState('');
+  const [numeroEntrega, setNumeroEntrega] = useState('');
+  const [barrioEntrega, setBarrioEntrega] = useState('');
   const [ciudadEntrega, setCiudadEntrega] = useState('');
+  const [departamentoEntrega, setDepartamentoEntrega] = useState('');
+  const [codigoPostalEntrega, setCodigoPostalEntrega] = useState('');
   const [telefonoContacto, setTelefonoContacto] = useState('');
   const [enviandoPedido, setEnviandoPedido] = useState(false);
   const [pasarelaPago, setPasarelaPago] = useState('mercadopago'); // 'mercadopago' | 'wompi'
+  const [opcionesEnvioNacional, setOpcionesEnvioNacional] = useState([]);
+  const [cotizandoEnvio, setCotizandoEnvio] = useState(false);
+  const [errorCotizacion, setErrorCotizacion] = useState('');
 
-  const opcionesEnvio = useMemo(() => tarifasParaCiudad(ciudadEntrega), [ciudadEntrega]);
+  const enBogota = esCiudadBase(ciudadEntrega);
+  // Fuera de Bogotá, las opciones son las que devolvió DrEnvío en vivo
+  // (cotizadas contra Interrapidísimo/Coordinadora/Servientrega reales)
+  // — ya no son tarifas fijas de referencia. Dentro de Bogotá se sigue
+  // usando la mensajería urbana estática (Yango/Didi), que esa API no cubre.
+  const opcionesEnvio = enBogota ? TARIFAS_URBANAS : opcionesEnvioNacional;
+
+  const direccionCompleta =
+    calleEntrega.trim() &&
+    numeroEntrega.trim() &&
+    ciudadEntrega.trim() &&
+    (enBogota || (departamentoEntrega.trim() && codigoPostalEntrega.trim()));
+
+  // Cotiza en vivo cuando la dirección nacional está completa. Se
+  // recalcula si el cliente cambia cualquier dato de la dirección.
+  useEffect(() => {
+    if (enBogota || !direccionCompleta || carrito.listaItems.length === 0) {
+      setOpcionesEnvioNacional([]);
+      return;
+    }
+    let cancelado = false;
+    setCotizandoEnvio(true);
+    setErrorCotizacion('');
+    supabase.functions
+      .invoke('cotizar-envio', {
+        body: {
+          direccion_estructurada: {
+            calle: calleEntrega,
+            numero: numeroEntrega,
+            barrio: barrioEntrega,
+            departamento: departamentoEntrega,
+            codigo_postal: codigoPostalEntrega,
+          },
+          ciudad: ciudadEntrega,
+          items: carrito.listaItems.map((it) => ({ producto_id: it.producto_id, cantidad: it.cantidad })),
+        },
+      })
+      .then(({ data, error: errFn }) => {
+        if (cancelado) return;
+        if (errFn || data?.error) {
+          setErrorCotizacion('No se pudo cotizar el envío en este momento. Intenta de nuevo en un momento.');
+          setOpcionesEnvioNacional([]);
+        } else {
+          setOpcionesEnvioNacional(data.opciones || []);
+        }
+        setCotizandoEnvio(false);
+      });
+    return () => {
+      cancelado = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enBogota, direccionCompleta, calleEntrega, numeroEntrega, barrioEntrega, ciudadEntrega, departamentoEntrega, codigoPostalEntrega]);
 
   // Si el cliente cambia de ciudad (ej: de Bogotá a otra ciudad),
   // la tarifa que había elegido puede dejar de aplicar — se resetea
@@ -169,8 +227,8 @@ export default function Marketplace() {
       return;
     }
     if (carrito.listaItems.length === 0) return;
-    if (!direccionEntrega.trim() || !ciudadEntrega.trim() || !telefonoContacto.trim()) {
-      setError('Completa dirección, ciudad y teléfono para poder despachar tu pedido.');
+    if (!direccionCompleta || !telefonoContacto.trim()) {
+      setError('Completa la dirección de entrega y el teléfono para poder despachar tu pedido.');
       return;
     }
     if (!carrito.tarifaEnvio) {
@@ -180,6 +238,7 @@ export default function Marketplace() {
 
     setEnviandoPedido(true);
     try {
+      const direccionMostrada = `${calleEntrega.trim()} ${numeroEntrega.trim()}${barrioEntrega.trim() ? `, ${barrioEntrega.trim()}` : ''}`;
       const { data: pedido, error: errPedido } = await supabase
         .from('pedidos')
         .insert({
@@ -188,10 +247,22 @@ export default function Marketplace() {
           costo_envio: carrito.costoEnvio,
           total: carrito.total,
           estado: carrito.requiereRevision ? 'en_revision' : 'pendiente',
-          direccion_entrega: direccionEntrega.trim(),
+          direccion_entrega: direccionMostrada,
           ciudad_entrega: ciudadEntrega.trim(),
           telefono_contacto: telefonoContacto.trim(),
           transportadora: carrito.tarifaEnvio.transportadora,
+          direccion_estructurada: enBogota
+            ? null
+            : {
+                calle: calleEntrega.trim(),
+                numero: numeroEntrega.trim(),
+                barrio: barrioEntrega.trim(),
+                departamento: departamentoEntrega,
+                codigo_postal: codigoPostalEntrega.trim(),
+              },
+          // Guardamos la cotización real de DrEnvío elegida (si aplica)
+          // para poder generar la guía real después sin volver a cotizar.
+          cotizacion_envio: carrito.tarifaEnvio._drenvio || null,
         })
         .select()
         .single();
@@ -721,10 +792,24 @@ export default function Marketplace() {
                       <MapPin size={14} /> Datos de entrega
                     </div>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input
+                          value={calleEntrega}
+                          onChange={(e) => setCalleEntrega(e.target.value)}
+                          placeholder="Calle / Carrera"
+                          style={{ ...inputEntregaStyle, flex: 2 }}
+                        />
+                        <input
+                          value={numeroEntrega}
+                          onChange={(e) => setNumeroEntrega(e.target.value)}
+                          placeholder="# -  -"
+                          style={{ ...inputEntregaStyle, flex: 1 }}
+                        />
+                      </div>
                       <input
-                        value={direccionEntrega}
-                        onChange={(e) => setDireccionEntrega(e.target.value)}
-                        placeholder="Dirección completa"
+                        value={barrioEntrega}
+                        onChange={(e) => setBarrioEntrega(e.target.value)}
+                        placeholder="Barrio (opcional)"
                         style={inputEntregaStyle}
                       />
                       <input
@@ -733,6 +818,40 @@ export default function Marketplace() {
                         placeholder="Ciudad"
                         style={inputEntregaStyle}
                       />
+                      {!enBogota && (
+                        <>
+                          <select
+                            value={departamentoEntrega}
+                            onChange={(e) => setDepartamentoEntrega(e.target.value)}
+                            style={inputEntregaStyle}
+                          >
+                            <option value="">Departamento</option>
+                            {DEPARTAMENTOS_COLOMBIA.map((d) => (
+                              <option key={d} value={d}>
+                                {d}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            value={codigoPostalEntrega}
+                            onChange={(e) => setCodigoPostalEntrega(e.target.value)}
+                            placeholder="Código postal (6 dígitos)"
+                            style={inputEntregaStyle}
+                          />
+                          <p style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', margin: 0 }}>
+                            ¿No sabes tu código postal?{' '}
+                            <a
+                              href="https://www.4-72.com.co/codigo-postal/"
+                              target="_blank"
+                              rel="noreferrer"
+                              style={{ color: 'var(--accion)', fontWeight: 'bold' }}
+                            >
+                              Consúltalo acá
+                            </a>
+                            .
+                          </p>
+                        </>
+                      )}
                       <input
                         value={telefonoContacto}
                         onChange={(e) => setTelefonoContacto(e.target.value)}
@@ -746,54 +865,67 @@ export default function Marketplace() {
                     <div style={{ fontSize: 12.5, fontWeight: 'bold', color: 'var(--cafe-oscuro)', marginBottom: 6 }}>
                       Elige tu tarifa de envío
                     </div>
-                    {!ciudadEntrega.trim() ? (
+                    {!direccionCompleta ? (
                       <p style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)' }}>
-                        Escribe tu ciudad arriba para ver las opciones de envío.
+                        Completa la dirección arriba para ver las opciones de envío.
                       </p>
+                    ) : cotizandoEnvio ? (
+                      <p style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)' }}>Cotizando con las transportadoras…</p>
+                    ) : errorCotizacion ? (
+                      <p style={{ fontSize: 11.5, color: 'var(--canela-oscuro)' }}>{errorCotizacion}</p>
                     ) : (
                       <>
                         <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', marginBottom: 6 }}>
-                          {esCiudadBase(ciudadEntrega)
+                          {enBogota
                             ? `Dentro de ${CIUDAD_BASE} — mensajería urbana`
-                            : 'Fuera de la ciudad — transportadora nacional'}
+                            : 'Fuera de Bogotá — cotización en vivo con la transportadora'}
                         </div>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                          {opcionesEnvio.map((t) => (
-                            <label
-                              key={t.id}
-                              style={{
-                                display: 'flex',
-                                justifyContent: 'space-between',
-                                alignItems: 'center',
-                                border: carrito.tarifaEnvio?.id === t.id ? '1.5px solid var(--accion)' : '1.5px solid rgba(146,97,55,0.2)',
-                                borderRadius: 12,
-                                padding: '10px 12px',
-                                cursor: 'pointer',
-                                background: carrito.tarifaEnvio?.id === t.id ? 'var(--accion-suave)' : '#fff',
-                              }}
-                            >
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                                <input
-                                  type="radio"
-                                  name="tarifaEnvio"
-                                  checked={carrito.tarifaEnvio?.id === t.id}
-                                  onChange={() => carrito.seleccionarTarifaEnvio(t)}
-                                />
-                                <div>
-                                  <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)' }}>{t.transportadora}</div>
-                                  <div style={{ fontSize: 11, color: 'var(--cafe-oscuro)' }}>
-                                    {t.tiempo} · {t.nota}
+                        {opcionesEnvio.length === 0 ? (
+                          <p style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)' }}>
+                            No encontramos opciones de envío para esa dirección. Revisa los datos.
+                          </p>
+                        ) : (
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                            {opcionesEnvio.map((t) => (
+                              <label
+                                key={t.id}
+                                style={{
+                                  display: 'flex',
+                                  justifyContent: 'space-between',
+                                  alignItems: 'center',
+                                  border:
+                                    carrito.tarifaEnvio?.id === t.id ? '1.5px solid var(--accion)' : '1.5px solid rgba(146,97,55,0.2)',
+                                  borderRadius: 12,
+                                  padding: '10px 12px',
+                                  cursor: 'pointer',
+                                  background: carrito.tarifaEnvio?.id === t.id ? 'var(--accion-suave)' : '#fff',
+                                }}
+                              >
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                                  <input
+                                    type="radio"
+                                    name="tarifaEnvio"
+                                    checked={carrito.tarifaEnvio?.id === t.id}
+                                    onChange={() => carrito.seleccionarTarifaEnvio(t)}
+                                  />
+                                  <div>
+                                    <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)' }}>{t.transportadora}</div>
+                                    <div style={{ fontSize: 11, color: 'var(--cafe-oscuro)' }}>
+                                      {t.tiempo} · {t.nota || t.servicio}
+                                    </div>
                                   </div>
                                 </div>
-                              </div>
-                              <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)' }}>{formatoCOP(t.costo)}</div>
-                            </label>
-                          ))}
-                        </div>
+                                <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)' }}>{formatoCOP(t.costo)}</div>
+                              </label>
+                            ))}
+                          </div>
+                        )}
                       </>
                     )}
                     <p style={{ fontSize: 10, color: 'var(--cafe-oscuro)', marginTop: 6 }}>
-                      Tarifas estimadas de referencia — todavía no hay una cotización en vivo conectada.
+                      {enBogota
+                        ? 'Tarifas estimadas de referencia — todavía no hay una cotización en vivo conectada para mensajería urbana.'
+                        : 'Tarifas cotizadas en vivo con la transportadora al momento de tu compra.'}
                     </p>
                   </div>
 

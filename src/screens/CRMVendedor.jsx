@@ -40,7 +40,7 @@ function mapearMetodoATipo(metodo) {
   return metodo === 'Accesorios y repuestos' ? 'accesorio' : 'metodo_preparacion';
 }
 
-const FORM_INICIAL = { nombre: '', metodo: 'V60', calidad: 'media', precio: '', stock: '', descripcion: '' };
+const FORM_INICIAL = { nombre: '', metodo: 'V60', calidad: 'media', precio: '', stock: '', descripcion: '', peso: '' };
 
 export default function CRMVendedor() {
   const { sesion, perfil, cargando: cargandoSesion } = useSesion();
@@ -108,6 +108,7 @@ export default function CRMVendedor() {
         precio: parseInt(form.precio, 10) || 0,
         stock: parseInt(form.stock, 10) || 0,
         caracteristicas: form.descripcion || null,
+        peso_kg: form.peso ? parseFloat(form.peso) : null,
         imagen_url: imagenUrl,
       });
       if (errIns) throw errIns;
@@ -240,6 +241,14 @@ export default function CRMVendedor() {
                   />
                 </Campo>
               </div>
+              <Campo label="Peso por unidad, en kg (para cotizar el envío)">
+                <input
+                  style={inputStyle}
+                  value={form.peso}
+                  onChange={(e) => setForm((f) => ({ ...f, peso: e.target.value }))}
+                  placeholder="Ej: 0.5"
+                />
+              </Campo>
               <Campo label="Foto del producto (opcional)">
                 <div
                   style={{

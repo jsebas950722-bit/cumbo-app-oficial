@@ -37,6 +37,11 @@ const TRANSPORTADORAS = Object.keys(URLS_SEGUIMIENTO);
 const COLOR_ESTADO = { confirmado: 'var(--canela-oscuro)', despachado: 'var(--tierra-kraft)', entregado: 'var(--verde-cumbre)' };
 const ETIQUETA_ESTADO = { confirmado: 'Por despachar', despachado: 'En tránsito', entregado: 'Entregado' };
 
+function nombreLegibleTransportadora(carrier) {
+  const mapa = { interrapidisimo: 'Interrapidísimo', coordinadora: 'Coordinadora', serviEntrega: 'Servientrega' };
+  return mapa[carrier] || carrier;
+}
+
 function formatoCOP(n) {
   return '$' + Math.round(n || 0).toLocaleString('es-CO');
 }
@@ -108,6 +113,25 @@ export default function Logistica() {
   }
 
   async function despachar(pedido) {
+    // Si el pedido tiene una cotización real de DrEnvío (envío
+    // nacional), generamos la guía real automáticamente — nada de
+    // escribir un número a mano. Los pedidos de mensajería urbana
+    // (Yango/Didi, dentro de Bogotá) no tienen esa cotización, así
+    // que siguen con el formulario manual como hasta ahora.
+    if (pedido.cotizacion_envio) {
+      setProcesando(pedido.id);
+      const { data, error } = await supabase.functions.invoke('generar-guia-envio', { body: { pedido_id: pedido.id } });
+      setProcesando(null);
+      if (error || data?.error) {
+        alert(
+          `No se pudo generar la guía automáticamente: ${data?.error || 'error desconocido'}. Puedes intentar de nuevo o contactar soporte de DrEnvío.`
+        );
+        return;
+      }
+      cargar();
+      return;
+    }
+
     const datos = formPorPedido[pedido.id] || {};
     if (!datos.transportadora || !datos.guia) return;
 
@@ -242,40 +266,64 @@ export default function Logistica() {
                       </div>
                     )}
 
-                    {p.estado === 'confirmado' && (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                        <select
-                          value={form.transportadora || ''}
-                          onChange={(e) => actualizarForm(p.id, 'transportadora', e.target.value)}
-                          style={inputStyle}
-                        >
-                          <option value="">Elegir transportadora…</option>
-                          {TRANSPORTADORAS.map((t) => (
-                            <option key={t} value={t}>
-                              {t}
-                            </option>
-                          ))}
-                        </select>
-                        <input
-                          placeholder="Número de guía"
-                          value={form.guia || ''}
-                          onChange={(e) => actualizarForm(p.id, 'guia', e.target.value)}
-                          style={inputStyle}
-                        />
-                        <button
-                          onClick={() => despachar(p)}
-                          disabled={procesando === p.id || !form.transportadora || !form.guia}
-                          style={botonAccion}
-                        >
-                          Marcar como despachado
-                        </button>
-                      </div>
-                    )}
+                    {p.estado === 'confirmado' &&
+                      (p.cotizacion_envio ? (
+                        <div>
+                          <div style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)', marginBottom: 8 }}>
+                            {nombreLegibleTransportadora(p.cotizacion_envio.carrier)} · {p.cotizacion_envio.service} · Cotizado en el
+                            checkout: {formatoCOP(p.cotizacion_envio.price)}
+                          </div>
+                          <button onClick={() => despachar(p)} disabled={procesando === p.id} style={botonAccion}>
+                            {procesando === p.id ? 'Generando guía…' : 'Generar guía real y despachar'}
+                          </button>
+                        </div>
+                      ) : (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                          <select
+                            value={form.transportadora || ''}
+                            onChange={(e) => actualizarForm(p.id, 'transportadora', e.target.value)}
+                            style={inputStyle}
+                          >
+                            <option value="">Elegir transportadora…</option>
+                            {TRANSPORTADORAS.map((t) => (
+                              <option key={t} value={t}>
+                                {t}
+                              </option>
+                            ))}
+                          </select>
+                          <input
+                            placeholder="Número de guía"
+                            value={form.guia || ''}
+                            onChange={(e) => actualizarForm(p.id, 'guia', e.target.value)}
+                            style={inputStyle}
+                          />
+                          <button
+                            onClick={() => despachar(p)}
+                            disabled={procesando === p.id || !form.transportadora || !form.guia}
+                            style={botonAccion}
+                          >
+                            Marcar como despachado
+                          </button>
+                        </div>
+                      ))}
 
                     {p.estado === 'despachado' && (
                       <div>
                         <div style={{ fontSize: 12, color: 'var(--marron-tinta)', marginBottom: 8 }}>
                           {p.transportadora} · Guía: <strong>{p.guia_transportadora}</strong>
+                          {p.etiqueta_envio_url && (
+                            <>
+                              {' · '}
+                              <a
+                                href={p.etiqueta_envio_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                style={{ color: 'var(--accion)', fontWeight: 'bold' }}
+                              >
+                                Ver etiqueta
+                              </a>
+                            </>
+                          )}
                         </div>
                         <button
                           onClick={() => marcarEntregado(p)}

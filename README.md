@@ -383,18 +383,67 @@ Y correr `cumbo_schema` hasta la migración de devoluciones (ver
 5. **Correr `cumbo_schema_wompi.sql`** (agrega `wompi_transaction_id` y
    `pasarela_pago` a `pedidos`).
 
-## Envíos: tarifas reales para elegir + seguimiento propio del cliente
+## Envíos: transportadora real conectada (Interrapidísimo, Coordinadora, Servientrega)
 
-- **Elegir tarifa en el checkout, según destino** — Cumbo despacha
-  desde **Bogotá**. Si la ciudad de entrega que escribe el cliente es
-  Bogotá, ve mensajería urbana (**Yango, Didi** — mismo día); si es
-  cualquier otra ciudad, ve transportadora nacional
-  (**Interrapidísimo, Coordinadora, Servientrega**). La comparación de
-  ciudad es por texto (ignora tildes/mayúsculas), así que "bogota",
-  "Bogotá" o "BOGOTÁ" cuentan igual. **Importante:** estas tarifas son
-  estimadas de referencia — no hay todavía una cotización en vivo
-  conectada a ninguna API real. La transportadora elegida y el costo
-  quedan guardados en el pedido de verdad.
+**Esto ya no es una tarifa estimada de referencia — se cotiza en vivo
+contra la transportadora real,** usando la API de
+[DrEnvío](https://docs.drenvio.com), que cubre Interrapidísimo,
+Coordinadora y Servientrega bajo un solo token. Se eligió esta opción
+porque las APIs propias de cada transportadora exigen tener ya un
+convenio comercial firmado con cada una — con DrEnvío no hace falta
+negociar contrato por contrato para empezar.
+
+- **Dentro de Bogotá**: sigue la mensajería urbana estática (Yango,
+  Didi, mismo día) — DrEnvío no cubre esas dos, así que ese flujo no
+  cambió.
+- **Fuera de Bogotá**: el checkout pide dirección estructurada (calle,
+  número, barrio, departamento, código postal — con link al buscador
+  oficial de [4-72](https://www.4-72.com.co/codigo-postal/) para quien
+  no sepa el suyo) y cotiza en vivo con
+  `supabase/functions/cotizar-envio`. Ya no es una tarifa fija — es lo
+  que la transportadora real cobra para esa dirección y ese peso
+  exactos.
+- **Al despachar**, Logística genera la guía real con
+  `supabase/functions/generar-guia-envio` — ya no se escribe un número
+  de guía a mano para envío nacional. Queda el link a la etiqueta
+  (PDF) lista para imprimir.
+- **Peso real del producto** — se agregó a CRM Vendedor porque
+  cotizar en serio necesita el peso real, no un estimado. Si un
+  producto no tiene peso cargado todavía, se usa 0.5 kg de respaldo
+  para no bloquear la cotización (esto está marcado como aproximado,
+  no se esconde).
+
+### Secrets nuevos que esto necesita
+
+```bash
+supabase secrets set DRENVIO_API_TOKEN=...
+# La dirección real desde donde Cumbo despacha:
+supabase secrets set ORIGEN_CALLE=...
+supabase secrets set ORIGEN_NUMERO=...
+supabase secrets set ORIGEN_BARRIO=...
+supabase secrets set ORIGEN_CIUDAD=Bogotá
+supabase secrets set ORIGEN_DEPARTAMENTO="Bogotá D.C."
+supabase secrets set ORIGEN_CODIGO_POSTAL=...
+supabase secrets set ORIGEN_TELEFONO=...
+```
+
+El token de DrEnvío se pide por chat en su plataforma, con el correo
+de tu cuenta (ver `docs.drenvio.com/getting-started`).
+
+```bash
+supabase functions deploy cotizar-envio
+supabase functions deploy generar-guia-envio
+```
+
+**Honestidad sobre lo que no pude verificar:** el entorno de sandbox
+de DrEnvío solo simula transportadoras mexicanas (JTExpress, Quiken) —
+no hay forma de probar una cotización real de Interrapidísimo/
+Coordinadora/Servientrega sin credenciales de producción reales. La
+integración está construida siguiendo su documentación al pie de la
+letra, pero **la primera cotización real que hagas con tu token es,
+en la práctica, la primera prueba de punta a punta** — revisa que
+todo salga bien antes de confiar en ella para clientes reales.
+
 - **Mis Pedidos** (`/mis-pedidos`, nueva pantalla, no estaba en el
   handoff original) — el cliente puede ver el estado real de sus
   propios pedidos, la guía cuando ya se asignó, y una línea de tiempo

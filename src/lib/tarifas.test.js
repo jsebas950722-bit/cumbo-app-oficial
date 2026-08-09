@@ -7,7 +7,20 @@ import {
   normalizarCiudad,
   TARIFAS_URBANAS,
   TARIFAS_NACIONALES,
+  DEPARTAMENTOS_COLOMBIA,
 } from './tarifas';
+
+describe('DEPARTAMENTOS_COLOMBIA', () => {
+  it('incluye los 32 departamentos + Bogotá D.C.', () => {
+    expect(DEPARTAMENTOS_COLOMBIA.length).toBe(33);
+    expect(DEPARTAMENTOS_COLOMBIA).toContain('Huila'); // origen del café Cumbo
+    expect(DEPARTAMENTOS_COLOMBIA).toContain('Bogotá D.C.');
+  });
+
+  it('no tiene departamentos duplicados', () => {
+    expect(new Set(DEPARTAMENTOS_COLOMBIA).size).toBe(DEPARTAMENTOS_COLOMBIA.length);
+  });
+});
 
 describe('normalizarCiudad', () => {
   it('quita tildes y pasa a minúsculas', () => {
