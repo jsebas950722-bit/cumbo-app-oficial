@@ -134,5 +134,6 @@ trámite, una decisión de negocio, o la revisión de un profesional:
    verificación de identidad que nadie más puede hacer por ti.
 4. **Número real de WhatsApp** de atención al cliente.
 5. **Confirmar tu plan de Supabase** y su política real de backups.
-6. **Proceso de devoluciones de punta a punta** — es construible, pero
-   es una pieza grande aparte; decime si querés que sigamos por ahí.
+6. **Probar de punta a punta con credenciales reales** — Mercado Pago,
+   Wompi, DrEnvío. Nada de esto se ha ejecutado contra una API real
+   todavía porque necesita tus cuentas y tokens, que yo no tengo.
