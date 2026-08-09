@@ -835,3 +835,29 @@ propio código:
 `supabase/functions/editar-foto-estudio` — recibe la foto real y el
 ajuste, guarda el resultado en `estudio-imagenes`, y registra el
 evento en `eventos_log` para que quede trazabilidad de qué se editó.
+
+### Fase 3: orquestación y distribución
+
+**Cambio de plan importante, con la razón explicada:** el documento
+pedía distribuir por WhatsApp usando la integración de Twilio ya
+existente. Al investigarlo, encontré un límite real de WhatsApp
+Business API que no se puede evitar: solo se pueden mandar mensajes
+libres dentro de una ventana de 24 horas después de que el cliente
+escribió — contenido de marketing proactivo (la naturaleza misma de
+un calendario editorial) casi siempre cae fuera de esa ventana, y
+exigiría plantillas pre-aprobadas por Meta que no existen todavía.
+En vez de construir algo que fallaría en la práctica la mayoría de las
+veces, la distribución se resolvió con el **botón nativo de compartir
+del teléfono** (Web Share API) — funciona hoy, sin restricciones,
+comparte a WhatsApp, Instagram o cualquier app instalada.
+
+- **Calendario editorial** — todas las piezas de todos los embudos,
+  filtrables por estado (`generado_ia` / `revisado` / `programado` /
+  `publicado`).
+- **Cola de aprobación obligatoria** — el botón de compartir está
+  desactivado hasta que la pieza esté al menos en `revisado`. Ninguna
+  pieza sale sin pasar por ahí primero, tal como pide el documento.
+- **Métricas reales de clics** — cada pieza compartida lleva un
+  enlace de seguimiento (`supabase/functions/clic-contenido-estudio`,
+  endpoint público) que registra el clic antes de redirigir al
+  Marketplace. El número de clics que ves es real, no una estimación.

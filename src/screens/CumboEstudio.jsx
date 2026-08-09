@@ -72,6 +72,8 @@ export default function CumboEstudio() {
   const [ajusteSeleccionado, setAjusteSeleccionado] = useState('mejorar_luz');
   const [editandoFoto, setEditandoFoto] = useState(false);
   const [fotoEditada, setFotoEditada] = useState('');
+  const [clicsPorContenido, setClicsPorContenido] = useState({});
+  const [filtroEstado, setFiltroEstado] = useState('todos');
 
   useEffect(() => {
     if (!sesion) return;
@@ -120,6 +122,42 @@ export default function CumboEstudio() {
     setMisProductos(productos || []);
     setMisFincas(fincas || []);
     setCargando(false);
+
+    if (hist?.length) {
+      const { data: clics } = await supabase
+        .from('clics_contenido_estudio')
+        .select('contenido_id, indice_pieza')
+        .in(
+          'contenido_id',
+          hist.map((h) => h.id)
+        );
+      const conteo = {};
+      (clics || []).forEach((c) => {
+        const clave = `${c.contenido_id}-${c.indice_pieza}`;
+        conteo[clave] = (conteo[clave] || 0) + 1;
+      });
+      setClicsPorContenido(conteo);
+    }
+  }
+
+  function enlaceDeSeguimiento(contenidoId, indice) {
+    const base = (import.meta.env.VITE_SUPABASE_URL || '').replace(/\/$/, '');
+    return `${base}/functions/v1/clic-contenido-estudio?c=${contenidoId}&i=${indice}`;
+  }
+
+  async function compartirPieza(contenido, indice, pieza) {
+    const enlace = enlaceDeSeguimiento(contenido.id, indice);
+    const texto = `${pieza.guion}\n\n${enlace}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ text: texto });
+      } catch {
+        /* el usuario canceló el compartir — no es un error */
+      }
+    } else {
+      await navigator.clipboard.writeText(texto);
+      alert('Tu navegador no soporta compartir directo — se copió el texto al portapapeles.');
+    }
   }
 
   async function renderizarPlantilla() {
@@ -723,8 +761,27 @@ export default function CumboEstudio() {
             gap: 6,
           }}
         >
-          <Calendar size={15} /> Tus embudos generados
+          <Calendar size={15} /> Calendario editorial
         </div>
+
+        <select
+          value={filtroEstado}
+          onChange={(e) => setFiltroEstado(e.target.value)}
+          style={{
+            width: '100%',
+            border: '1px solid rgba(146,97,55,0.25)',
+            borderRadius: 10,
+            padding: '8px 10px',
+            fontSize: 12.5,
+            marginBottom: 12,
+          }}
+        >
+          <option value="todos">Todos los estados</option>
+          <option value="generado_ia">Generado por IA</option>
+          <option value="revisado">Revisado</option>
+          <option value="programado">Programado</option>
+          <option value="publicado">Publicado</option>
+        </select>
 
         {cargando ? (
           <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>
@@ -739,126 +796,162 @@ export default function CumboEstudio() {
                   {c.modelo_usado || 'claude'}
                 </span>
               </div>
-              {(c.piezas || []).map((p, i) => {
-                const IconoPlataforma = ICONO_PLATAFORMA[p.plataforma] || MessageCircle;
-                const etapa = ETAPA_INFO[p.etapa_embudo] || ETAPA_INFO.atraccion;
-                const IconoEtapa = etapa.Icono;
-                return (
-                  <div key={i} style={{ padding: '10px 0', borderTop: i > 0 ? '1px solid var(--fondo-calido)' : 'none' }}>
-                    <div style={{ display: 'flex', gap: 10, marginBottom: 6 }}>
-                      <div
-                        style={{
-                          width: 28,
-                          height: 28,
-                          borderRadius: '50%',
-                          background: 'var(--accion-suave)',
-                          display: 'flex',
-                          alignItems: 'center',
-                          justifyContent: 'center',
-                          flexShrink: 0,
-                        }}
-                      >
-                        <IconoPlataforma size={14} color="var(--accion)" />
+              {(c.piezas || [])
+                .filter((p) => filtroEstado === 'todos' || (p.estado_editorial || 'generado_ia') === filtroEstado)
+                .map((p) => {
+                  const i = (c.piezas || []).indexOf(p);
+                  const IconoPlataforma = ICONO_PLATAFORMA[p.plataforma] || MessageCircle;
+                  const etapa = ETAPA_INFO[p.etapa_embudo] || ETAPA_INFO.atraccion;
+                  const IconoEtapa = etapa.Icono;
+                  return (
+                    <div key={i} style={{ padding: '10px 0', borderTop: i > 0 ? '1px solid var(--fondo-calido)' : 'none' }}>
+                      <div style={{ display: 'flex', gap: 10, marginBottom: 6 }}>
+                        <div
+                          style={{
+                            width: 28,
+                            height: 28,
+                            borderRadius: '50%',
+                            background: 'var(--accion-suave)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            flexShrink: 0,
+                          }}
+                        >
+                          <IconoPlataforma size={14} color="var(--accion)" />
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                            <span
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 3,
+                                fontSize: 9.5,
+                                fontWeight: 'bold',
+                                color: etapa.color,
+                                background: `${etapa.color}1a`,
+                                borderRadius: 999,
+                                padding: '2px 8px',
+                              }}
+                            >
+                              <IconoEtapa size={10} /> {etapa.label}
+                            </span>
+                            <span style={{ fontSize: 10, color: 'var(--cafe-oscuro)' }}>
+                              Día {p.dia} · {p.plataforma}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: 12.5, color: 'var(--marron-tinta)' }}>{p.guion}</div>
+                          {p.cta && <div style={{ fontSize: 11, color: 'var(--accion)', fontWeight: 'bold', marginTop: 4 }}>→ {p.cta}</div>}
+                          {p.datos_sin_verificar?.length > 0 && (
+                            <div style={{ fontSize: 10, color: 'var(--canela-oscuro)', marginTop: 4, fontStyle: 'italic' }}>
+                              Incluye datos sin verificar: {p.datos_sin_verificar.join(', ')}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-                          <span
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                        <span
+                          style={{
+                            fontSize: 9.5,
+                            fontWeight: 'bold',
+                            color: 'var(--cafe-oscuro)',
+                            background: 'var(--fondo-calido)',
+                            borderRadius: 999,
+                            padding: '3px 9px',
+                            textTransform: 'capitalize',
+                          }}
+                        >
+                          {(p.estado_editorial || 'generado_ia').replace('_', ' ')}
+                        </span>
+                        {p.estado_editorial !== 'publicado' && (
+                          <button
+                            onClick={() => avanzarEstadoEditorial(c, i)}
                             style={{
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: 3,
-                              fontSize: 9.5,
+                              background: 'none',
+                              border: 'none',
+                              color: 'var(--accion)',
+                              fontSize: 10.5,
                               fontWeight: 'bold',
-                              color: etapa.color,
-                              background: `${etapa.color}1a`,
-                              borderRadius: 999,
-                              padding: '2px 8px',
+                              cursor: 'pointer',
+                              padding: 0,
                             }}
                           >
-                            <IconoEtapa size={10} /> {etapa.label}
-                          </span>
-                          <span style={{ fontSize: 10, color: 'var(--cafe-oscuro)' }}>
-                            Día {p.dia} · {p.plataforma}
-                          </span>
-                        </div>
-                        <div style={{ fontSize: 12.5, color: 'var(--marron-tinta)' }}>{p.guion}</div>
-                        {p.cta && <div style={{ fontSize: 11, color: 'var(--accion)', fontWeight: 'bold', marginTop: 4 }}>→ {p.cta}</div>}
-                        {p.datos_sin_verificar?.length > 0 && (
-                          <div style={{ fontSize: 10, color: 'var(--canela-oscuro)', marginTop: 4, fontStyle: 'italic' }}>
-                            Incluye datos sin verificar: {p.datos_sin_verificar.join(', ')}
-                          </div>
+                            Marcar como{' '}
+                            {
+                              { generado_ia: 'revisado', revisado: 'programado', programado: 'publicado' }[
+                                p.estado_editorial || 'generado_ia'
+                              ]
+                            }{' '}
+                            →
+                          </button>
                         )}
                       </div>
-                    </div>
 
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
-                      <span
-                        style={{
-                          fontSize: 9.5,
-                          fontWeight: 'bold',
-                          color: 'var(--cafe-oscuro)',
-                          background: 'var(--fondo-calido)',
-                          borderRadius: 999,
-                          padding: '3px 9px',
-                          textTransform: 'capitalize',
-                        }}
-                      >
-                        {(p.estado_editorial || 'generado_ia').replace('_', ' ')}
-                      </span>
-                      {p.estado_editorial !== 'publicado' && (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
                         <button
-                          onClick={() => avanzarEstadoEditorial(c, i)}
+                          onClick={() => compartirPieza(c, i, p)}
+                          disabled={!['revisado', 'programado', 'publicado'].includes(p.estado_editorial)}
+                          title={
+                            !['revisado', 'programado', 'publicado'].includes(p.estado_editorial)
+                              ? 'Primero marcá esta pieza como revisada'
+                              : ''
+                          }
                           style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
                             background: 'none',
-                            border: 'none',
+                            border: '1px solid rgba(146,97,55,0.25)',
+                            borderRadius: 999,
+                            padding: '5px 11px',
                             color: 'var(--accion)',
                             fontSize: 10.5,
                             fontWeight: 'bold',
-                            cursor: 'pointer',
-                            padding: 0,
+                            cursor: !['revisado', 'programado', 'publicado'].includes(p.estado_editorial) ? 'not-allowed' : 'pointer',
+                            opacity: !['revisado', 'programado', 'publicado'].includes(p.estado_editorial) ? 0.4 : 1,
                           }}
                         >
-                          Marcar como{' '}
-                          {
-                            { generado_ia: 'revisado', revisado: 'programado', programado: 'publicado' }[
-                              p.estado_editorial || 'generado_ia'
-                            ]
-                          }{' '}
-                          →
+                          Compartir
+                        </button>
+                        {clicsPorContenido[`${c.id}-${i}`] > 0 && (
+                          <span style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)' }}>
+                            {clicsPorContenido[`${c.id}-${i}`]} clics reales
+                          </span>
+                        )}
+                      </div>
+
+                      {p.imagen_url ? (
+                        <img src={p.imagen_url} alt="" style={{ width: '100%', borderRadius: 10, marginTop: 4 }} />
+                      ) : (
+                        <button
+                          onClick={() => generarImagen(c.id, i, p.guion)}
+                          disabled={generandoImagen === `${c.id}-${i}`}
+                          style={{
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: 5,
+                            background: 'none',
+                            border: '1px dashed rgba(146,97,55,0.35)',
+                            borderRadius: 10,
+                            padding: '7px 10px',
+                            color: 'var(--accion)',
+                            fontSize: 11,
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            marginTop: 4,
+                            width: '100%',
+                            justifyContent: 'center',
+                          }}
+                        >
+                          <ImageIcon size={13} />{' '}
+                          {generandoImagen === `${c.id}-${i}` ? 'Generando imagen con Gemini…' : 'Generar imagen con Gemini'}
                         </button>
                       )}
                     </div>
-
-                    {p.imagen_url ? (
-                      <img src={p.imagen_url} alt="" style={{ width: '100%', borderRadius: 10, marginTop: 4 }} />
-                    ) : (
-                      <button
-                        onClick={() => generarImagen(c.id, i, p.guion)}
-                        disabled={generandoImagen === `${c.id}-${i}`}
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 5,
-                          background: 'none',
-                          border: '1px dashed rgba(146,97,55,0.35)',
-                          borderRadius: 10,
-                          padding: '7px 10px',
-                          color: 'var(--accion)',
-                          fontSize: 11,
-                          fontWeight: 'bold',
-                          cursor: 'pointer',
-                          marginTop: 4,
-                          width: '100%',
-                          justifyContent: 'center',
-                        }}
-                      >
-                        <ImageIcon size={13} />{' '}
-                        {generandoImagen === `${c.id}-${i}` ? 'Generando imagen con Gemini…' : 'Generar imagen con Gemini'}
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
+                  );
+                })}
             </div>
           ))
         )}
