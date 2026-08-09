@@ -15,6 +15,7 @@ import {
   TrendingUp,
   TrendingDown,
   Sparkles,
+  Calendar,
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
@@ -1156,6 +1157,8 @@ const LIMITE_PLAN_ESTUDIO = { chispa: 3, cosecha: 15, finca_completa: 50 };
 
 function TabEstudio() {
   const [suscripciones, setSuscripciones] = useState([]);
+  const [kpis, setKpis] = useState(null);
+  const [serieSemanal, setSerieSemanal] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState('');
 
@@ -1165,11 +1168,47 @@ function TabEstudio() {
 
   async function cargar() {
     setCargando(true);
-    const { data } = await supabase
-      .from('suscripciones_estudio')
-      .select('*, usuarios(nombre_completo, correo)')
-      .order('actualizado_en', { ascending: false });
-    setSuscripciones(data || []);
+    const [{ data: sus }, { data: contenidos }] = await Promise.all([
+      supabase.from('suscripciones_estudio').select('*, usuarios(nombre_completo, correo)').order('actualizado_en', { ascending: false }),
+      supabase.from('contenido_marketing').select('piezas, fecha_creacion'),
+    ]);
+    setSuscripciones(sus || []);
+
+    const listaContenidos = contenidos || [];
+    const periodoActual = new Date().toISOString().slice(0, 7);
+    const generacionesEsteMes = listaContenidos.filter((c) => c.fecha_creacion.slice(0, 7) === periodoActual).length;
+    const piezasTotales = listaContenidos.reduce((acc, c) => acc + (c.piezas?.length || 0), 0);
+    const vendedoresActivos = (sus || []).filter((s) => s.usos_este_mes > 0).length;
+
+    const conteoPlanes = {};
+    (sus || []).forEach((s) => {
+      conteoPlanes[s.plan] = (conteoPlanes[s.plan] || 0) + 1;
+    });
+    const planMasPopular = Object.entries(conteoPlanes).sort((a, b) => b[1] - a[1])[0]?.[0];
+
+    // Tendencia real: generaciones de esta semana vs. la anterior.
+    const hoy = Date.now();
+    const hace7dias = hoy - 7 * 86400000;
+    const hace14dias = hoy - 14 * 86400000;
+    const estaSemana = listaContenidos.filter((c) => new Date(c.fecha_creacion).getTime() >= hace7dias).length;
+    const semanaAnterior = listaContenidos.filter((c) => {
+      const t = new Date(c.fecha_creacion).getTime();
+      return t >= hace14dias && t < hace7dias;
+    }).length;
+    const tendencia = semanaAnterior === 0 ? null : Math.round(((estaSemana - semanaAnterior) / semanaAnterior) * 100);
+
+    const semanas = Array.from({ length: 6 }, (_, i) => {
+      const desde = hoy - (6 - i) * 7 * 86400000;
+      const hasta = hoy - (5 - i) * 7 * 86400000;
+      const cantidad = listaContenidos.filter((c) => {
+        const t = new Date(c.fecha_creacion).getTime();
+        return t >= desde && t < hasta;
+      }).length;
+      return { semana: i + 1, cantidad };
+    });
+
+    setKpis({ generacionesEsteMes, piezasTotales, vendedoresActivos, planMasPopular, tendencia });
+    setSerieSemanal(semanas);
     setCargando(false);
   }
 
@@ -1180,10 +1219,42 @@ function TabEstudio() {
     cargar();
   }
 
-  if (cargando) return <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>;
+  if (cargando || !kpis) return <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>;
+
+  const maxSemana = Math.max(1, ...serieSemanal.map((s) => s.cantidad));
 
   return (
     <div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+        <Kpi label="Contenidos este mes" valor={kpis.generacionesEsteMes} Icono={Sparkles} tendencia={kpis.tendencia} />
+        <Kpi label="Piezas totales generadas" valor={kpis.piezasTotales} Icono={Calendar} />
+        <Kpi label="Vendedores activos" valor={kpis.vendedoresActivos} Icono={ShoppingBag} color="var(--exito)" />
+        <Kpi label="Plan más popular" valor={NOMBRE_PLAN_ESTUDIO[kpis.planMasPopular] || 'N/D'} Icono={TrendingUp} />
+      </div>
+
+      <div style={tarjeta}>
+        <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)', marginBottom: 12 }}>
+          Contenidos generados por semana
+        </div>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 90 }}>
+          {serieSemanal.map((s) => (
+            <div key={s.semana} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+              <div
+                style={{
+                  width: '100%',
+                  height: `${Math.max(6, (s.cantidad / maxSemana) * 70)}px`,
+                  background: 'var(--accion)',
+                  borderRadius: 4,
+                }}
+              />
+              <span style={{ fontSize: 9.5, color: 'var(--cafe-oscuro)' }}>{s.cantidad}</span>
+            </div>
+          ))}
+        </div>
+        <div style={{ fontSize: 10, color: 'var(--cafe-oscuro)', textAlign: 'center', marginTop: 6 }}>Últimas 6 semanas</div>
+      </div>
+
+      <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)', margin: '4px 0 10px' }}>Planes por vendedor</div>
       <p style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)', marginBottom: 12 }}>
         Esto asigna el plan manualmente — el cobro recurrente automático todavía no está construido. El vendedor paga por fuera y vos le
         asignás el plan acá.
