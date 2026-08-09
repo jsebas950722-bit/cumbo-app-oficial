@@ -744,3 +744,45 @@ recurrente automáticamente cada mes según el plan es una pieza aparte
 (necesitaría suscripciones recurrentes con Mercado Pago/Wompi, que no
 son lo mismo que un cobro único). Por ahora, el vendedor paga por
 fuera y el CEO le asigna el plan desde Panel Cumbo.
+
+### Fase 1 del documento de arquitectura: Motor de Voz de Marca
+
+Sebastián subió un documento de arquitectura completo
+("Cumbo Estudio 2.0 — Esquema Estratégico y Técnico") que sintetiza
+Jasper, Copy.ai, Canva, Adobe Firefly, HeyGen y Descript adaptados al
+dominio del café. El documento prioriza explícitamente las Fases 1-3
+(voz, visual, orquestación) como las de mayor valor y menor riesgo,
+dejando video/avatares (Fase 4) para validar demanda antes de construir
+— se construyó exactamente en ese orden, empezando por la Fase 1.
+
+- **Motor de voz de marca** (`voz_de_marca`) — en vez de un prompt
+  suelto, el CEO carga fragmentos reales (Constitución del Ecosistema,
+  Gobernanza de Conocimiento de Café, conversaciones destacadas del
+  Sommelier) desde **Panel Cumbo → Voz de marca**. Cada generación de
+  contenido los lee como referencia de tono real.
+- **Perfiles de tono** — técnico/catador, cercano/consumidor,
+  educativo — el vendedor elige cuál usar por pieza, tal como pide el
+  documento.
+- **Guardrail de datos verificados vs. auto-reportados** — región,
+  proceso, especie y altitud de una finca quedan confirmados cuando el
+  CEO la valida; pero notas de sabor, humedad y malla del grano son
+  datos que el caficultor reportó él mismo, sin verificación
+  independiente. El motor los marca explícitamente como "(sin
+  verificar)" en el catálogo que le pasamos a la IA, y le exige
+  conservar esa honestidad si los usa en el contenido — nunca
+  presentarlos como un hecho comprobado.
+- **Estados editoriales** por pieza — `generado_ia` → `revisado` →
+  `programado` → `publicado`, con botón para avanzar cada pieza,
+  siguiendo el flujo de aprobación que pide el documento.
+
+**Lo que queda pendiente del documento (Fases 2 y 4, deliberadamente
+no construidas todavía):**
+- Fase 2 — Motor visual tipo Canva (Brand Kit + plantillas de piezas
+  recurrentes) y edición fotográfica segura tipo Firefly sobre fotos
+  reales de finca/catación (sin generar personas sintéticas).
+- Fase 3 — Calendario editorial completo con vista de todas las
+  piezas por estado, y métricas por pieza (aperturas de WhatsApp,
+  clics, conversión).
+- Fase 4 — Video por transcripción y avatares para Cumbo Academy. El
+  propio documento recomienda validar demanda real antes de invertir
+  acá — no se construyó a propósito.

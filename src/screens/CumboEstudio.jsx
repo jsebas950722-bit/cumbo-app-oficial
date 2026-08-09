@@ -46,6 +46,7 @@ export default function CumboEstudio() {
   const [intencion, setIntencion] = useState('');
   const [cantidadPiezas, setCantidadPiezas] = useState(3);
   const [modelo, setModelo] = useState('claude');
+  const [perfilTono, setPerfilTono] = useState('cercano_consumidor');
   const [consentimientoAvatar, setConsentimientoAvatar] = useState(false);
   const [generando, setGenerando] = useState(false);
   const [generandoImagen, setGenerandoImagen] = useState('');
@@ -100,7 +101,13 @@ export default function CumboEstudio() {
     setError('');
     try {
       const { data, error: errFn } = await supabase.functions.invoke('generar-contenido-estudio', {
-        body: { intencion: intencion.trim(), cantidad_piezas: cantidadPiezas, consentimiento_avatar: consentimientoAvatar, modelo },
+        body: {
+          intencion: intencion.trim(),
+          cantidad_piezas: cantidadPiezas,
+          consentimiento_avatar: consentimientoAvatar,
+          modelo,
+          perfil_tono: perfilTono,
+        },
       });
       if (errFn || data?.error) {
         setError(data?.error || 'No se pudo generar el contenido. Intenta de nuevo.');
@@ -124,6 +131,15 @@ export default function CumboEstudio() {
       cargar();
     }
     setGenerandoImagen('');
+  }
+
+  async function avanzarEstadoEditorial(contenido, indice) {
+    const secuencia = ['generado_ia', 'revisado', 'programado', 'publicado'];
+    const actual = contenido.piezas[indice].estado_editorial || 'generado_ia';
+    const siguiente = secuencia[Math.min(secuencia.indexOf(actual) + 1, secuencia.length - 1)];
+    const piezasActualizadas = contenido.piezas.map((p, i) => (i === indice ? { ...p, estado_editorial: siguiente } : p));
+    await supabase.from('contenido_marketing').update({ piezas: piezasActualizadas }).eq('id', contenido.id);
+    cargar();
   }
 
   if (cargandoSesion) return null;
@@ -261,6 +277,24 @@ export default function CumboEstudio() {
               ))}
             </select>
           </div>
+
+          <label style={{ display: 'block', fontSize: 12, color: 'var(--cafe-oscuro)', marginBottom: 4 }}>Perfil de tono</label>
+          <select
+            value={perfilTono}
+            onChange={(e) => setPerfilTono(e.target.value)}
+            style={{
+              width: '100%',
+              border: '1px solid rgba(146,97,55,0.25)',
+              borderRadius: 10,
+              padding: '8px 10px',
+              fontSize: 12.5,
+              marginBottom: 12,
+            }}
+          >
+            <option value="cercano_consumidor">Cercano — para alguien que recién descubre el café de especialidad</option>
+            <option value="tecnico_catador">Técnico/catador — vocabulario preciso de catación</option>
+            <option value="educativo_academy">Educativo — explica el porqué de cada dato</option>
+          </select>
           <label
             style={{
               display: 'flex',
@@ -386,7 +420,50 @@ export default function CumboEstudio() {
                         </div>
                         <div style={{ fontSize: 12.5, color: 'var(--marron-tinta)' }}>{p.guion}</div>
                         {p.cta && <div style={{ fontSize: 11, color: 'var(--accion)', fontWeight: 'bold', marginTop: 4 }}>→ {p.cta}</div>}
+                        {p.datos_sin_verificar?.length > 0 && (
+                          <div style={{ fontSize: 10, color: 'var(--canela-oscuro)', marginTop: 4, fontStyle: 'italic' }}>
+                            Incluye datos sin verificar: {p.datos_sin_verificar.join(', ')}
+                          </div>
+                        )}
                       </div>
+                    </div>
+
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 6 }}>
+                      <span
+                        style={{
+                          fontSize: 9.5,
+                          fontWeight: 'bold',
+                          color: 'var(--cafe-oscuro)',
+                          background: 'var(--fondo-calido)',
+                          borderRadius: 999,
+                          padding: '3px 9px',
+                          textTransform: 'capitalize',
+                        }}
+                      >
+                        {(p.estado_editorial || 'generado_ia').replace('_', ' ')}
+                      </span>
+                      {p.estado_editorial !== 'publicado' && (
+                        <button
+                          onClick={() => avanzarEstadoEditorial(c, i)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: 'var(--accion)',
+                            fontSize: 10.5,
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            padding: 0,
+                          }}
+                        >
+                          Marcar como{' '}
+                          {
+                            { generado_ia: 'revisado', revisado: 'programado', programado: 'publicado' }[
+                              p.estado_editorial || 'generado_ia'
+                            ]
+                          }{' '}
+                          →
+                        </button>
+                      )}
                     </div>
 
                     {p.imagen_url ? (

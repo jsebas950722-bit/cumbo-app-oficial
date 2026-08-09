@@ -28,13 +28,31 @@ import { corsHeaders } from '../_shared/cors.ts';
 const LIMITES_PLAN: Record<string, number> = { chispa: 3, cosecha: 15, finca_completa: 50 };
 const NOMBRE_PLAN: Record<string, string> = { chispa: 'Chispa', cosecha: 'Cosecha', finca_completa: 'Finca Completa' };
 
-function promptEmbudo(intencion: string, numPiezas: number, catalogoTexto: string, consentimientoAvatar: boolean) {
-  return `Sos un estratega de marketing para Cumbo, una plataforma colombiana de café de especialidad. Tu trabajo es diseñar un EMBUDO DE CONVERSIÓN completo — no piezas sueltas y desconectadas — a partir de esta intención del vendedor:
+function promptEmbudo(
+  intencion: string,
+  numPiezas: number,
+  catalogoTexto: string,
+  consentimientoAvatar: boolean,
+  vozDeMarcaTexto: string,
+  perfilTono: string
+) {
+  const NOMBRE_TONO: Record<string, string> = {
+    tecnico_catador: 'técnico/catador — vocabulario de catación preciso, para gente que ya conoce de café de especialidad',
+    cercano_consumidor: 'cercano/consumidor final — cálido y simple, sin tecnicismos, para alguien que recién descubre el café de especialidad',
+    educativo_academy: 'educativo — explica el "por qué" detrás de cada dato (por qué importa el proceso, la altitud, etc.), tono de quien enseña con paciencia',
+  };
+
+  return `Sos el motor de voz de marca de Cumbo, una plataforma colombiana de café de especialidad con trazabilidad de origen real. Tu trabajo es diseñar un EMBUDO DE CONVERSIÓN completo — no piezas sueltas — a partir de esta intención del vendedor:
 
 "${intencion}"
 
-Catálogo real (nunca inventes productos que no estén acá):
+${vozDeMarcaTexto ? `CÓMO SUENA CUMBO (fragmentos reales de la marca — imitá este tono y vocabulario, no genérico de marketing de café):\n${vozDeMarcaTexto}\n` : ''}
+Perfil de tono para esta pieza: ${NOMBRE_TONO[perfilTono] || NOMBRE_TONO.cercano_consumidor}
+
+CATÁLOGO REAL (nunca inventes productos, fincas, altitudes, procesos o puntajes que no estén acá — esta es la regla más importante):
 ${catalogoTexto}
+
+GUARDRAIL DE DATOS — muy importante: los datos marcados como "(sin verificar)" en el catálogo son auto-reportados por el caficultor, no han sido validados independientemente. Si los usás en el contenido, tenés que conservar esa honestidad (ej: "según nos cuenta el caficultor..." en vez de afirmarlo como un hecho verificado). Nunca le quites el matiz de "sin verificar" a un dato que lo tiene.
 
 ${consentimientoAvatar ? 'El vendedor autorizó usar un avatar de IA — podés sugerir guiones para video corto con presentador.' : 'El vendedor NO autorizó avatar de IA — los guiones deben ser para foto/carrusel con texto, sin presentador ni video hablado.'}
 
@@ -46,7 +64,7 @@ Diseñá ${numPiezas} piezas distribuidas de forma realista a lo largo de las 3 
 No pongas todas las piezas en la misma etapa — un embudo real avanza a la persona de una etapa a la siguiente.
 
 Respondé ÚNICAMENTE con un array JSON (sin texto adicional, sin \`\`\`), un objeto por pieza, con esta forma exacta:
-[{"dia": 1, "plataforma": "Instagram" | "WhatsApp Estados" | "Facebook", "etapa_embudo": "atraccion" | "consideracion" | "conversion", "guion": "texto corto y natural en español colombiano, listo para publicar", "cta": "el llamado a la acción exacto de esa pieza, ej: 'Escríbenos por WhatsApp' o 'Compra ahora en el Marketplace'"}]`;
+[{"dia": 1, "plataforma": "Instagram" | "WhatsApp Estados" | "Facebook", "etapa_embudo": "atraccion" | "consideracion" | "conversion", "guion": "texto corto y natural en español colombiano, listo para publicar", "cta": "el llamado a la acción exacto de esa pieza, ej: 'Escríbenos por WhatsApp' o 'Compra ahora en el Marketplace'", "datos_sin_verificar": ["lista de qué datos citados en el guion son sin verificar — vacío si no citaste ninguno"]}]`;
 }
 
 async function generarConClaude(prompt: string) {
@@ -82,7 +100,7 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { tema, intencion, cantidad_piezas, consentimiento_avatar, modelo } = await req.json();
+    const { tema, intencion, cantidad_piezas, consentimiento_avatar, modelo, perfil_tono } = await req.json();
     const intencionFinal = (intencion || tema || '').trim(); // 'tema' se mantiene por compatibilidad con la versión anterior
     if (!intencionFinal) {
       return new Response(JSON.stringify({ error: 'Falta contarnos qué querés lograr con este contenido' }), { status: 400, headers: corsHeaders });
@@ -138,18 +156,46 @@ Deno.serve(async (req) => {
     // Productos reales del vendedor — el contenido se genera sobre lo
     // que de verdad vende, no genérico.
     const { data: productos } = await supabase.from('productos').select('nombre, precio, caracteristicas').eq('vendedor_id', user.id).eq('activo', true);
-    const { data: fincas } = await supabase.from('fincas').select('nombre_finca, region, proceso, especie').eq('caficultor_id', user.id).eq('estado', 'validada');
+    const { data: fincas } = await supabase
+      .from('fincas')
+      .select('nombre_finca, region, proceso, especie, altitud_msnm, notas_sabor, humedad_grano, estado_grano, malla_grano')
+      .eq('caficultor_id', user.id)
+      .eq('estado', 'validada');
 
+    // Guardrail de datos (lo que pide el documento de arquitectura):
+    // región/proceso/especie/altitud quedaron confirmados cuando el
+    // CEO validó la finca — pero notas de sabor, humedad y malla son
+    // datos que el caficultor reportó él mismo al registrarse, nadie
+    // los verificó de forma independiente. Se marcan así de forma
+    // explícita para que la IA nunca los presente como un hecho
+    // comprobado.
     const catalogoTexto = [
       ...(productos || []).map((p) => `- ${p.nombre} ($${p.precio})${p.caracteristicas ? `: ${p.caracteristicas}` : ''}`),
-      ...(fincas || []).map((f) => `- Café de ${f.nombre_finca}, ${f.region}, proceso ${f.proceso}, ${f.especie}`),
+      ...(fincas || []).map((f) => {
+        const base = `- Café de ${f.nombre_finca}, ${f.region}, proceso ${f.proceso}, ${f.especie}, ${f.altitud_msnm} msnm`;
+        const sinVerificar = [];
+        if (f.notas_sabor) sinVerificar.push(`notas de sabor "${f.notas_sabor}" (sin verificar)`);
+        if (f.humedad_grano) sinVerificar.push(`humedad ${f.humedad_grano}% (sin verificar)`);
+        if (f.estado_grano) sinVerificar.push(`estado del grano "${f.estado_grano}" (sin verificar)`);
+        if (f.malla_grano) sinVerificar.push(`malla "${f.malla_grano}" (sin verificar)`);
+        return sinVerificar.length ? `${base}. Datos adicionales: ${sinVerificar.join(', ')}` : base;
+      }),
     ].join('\n');
 
     if (!catalogoTexto) {
       return new Response(JSON.stringify({ error: 'Todavía no tienes productos o una finca validada para generar contenido sobre ellos.' }), { status: 400, headers: corsHeaders });
     }
 
-    const prompt = promptEmbudo(intencionFinal, numPiezas, catalogoTexto, !!consentimiento_avatar);
+    // Motor de voz de marca: fragmentos reales curados por el CEO
+    // (Constitución del Ecosistema, Gobernanza de Conocimiento de
+    // Café, conversaciones destacadas del Sommelier) — la fuente de
+    // verdad de tono que pide el documento, no un prompt suelto.
+    const { data: ejemplosVoz } = await supabase.from('voz_de_marca').select('contenido').eq('activo', true).limit(8);
+    const vozDeMarcaTexto = (ejemplosVoz || []).map((v) => `- ${v.contenido}`).join('\n');
+
+    const perfilTonoFinal = ['tecnico_catador', 'cercano_consumidor', 'educativo_academy'].includes(perfil_tono) ? perfil_tono : 'cercano_consumidor';
+
+    const prompt = promptEmbudo(intencionFinal, numPiezas, catalogoTexto, !!consentimiento_avatar, vozDeMarcaTexto, perfilTonoFinal);
 
     let resultado;
     try {
@@ -161,14 +207,25 @@ Deno.serve(async (req) => {
 
     let piezas;
     try {
-      piezas = JSON.parse(resultado.texto.replace(/^```json\s*|\s*```$/g, '')).map((p: Record<string, unknown>) => ({ ...p, estado: 'borrador', imagen_url: null }));
+      piezas = JSON.parse(resultado.texto.replace(/^```json\s*|\s*```$/g, '')).map((p: Record<string, unknown>) => ({
+        ...p,
+        estado_editorial: 'generado_ia', // generado_ia → revisado → programado → publicado
+        imagen_url: null,
+      }));
     } catch {
       return new Response(JSON.stringify({ error: 'La IA devolvió una respuesta que no se pudo interpretar. Intenta de nuevo.' }), { status: 502, headers: corsHeaders });
     }
 
     const { data: contenido, error: errInsert } = await supabase
       .from('contenido_marketing')
-      .insert({ vendedor_id: user.id, tema: intencionFinal, piezas, consentimiento_avatar: !!consentimiento_avatar, tokens_consumidos: resultado.tokens, modelo_usado: modeloElegido })
+      .insert({
+        vendedor_id: user.id,
+        tema: intencionFinal,
+        piezas,
+        consentimiento_avatar: !!consentimiento_avatar,
+        tokens_consumidos: resultado.tokens,
+        modelo_usado: modeloElegido,
+      })
       .select()
       .single();
     if (errInsert) throw errInsert;

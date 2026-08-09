@@ -100,6 +100,7 @@ export default function PanelCumbo() {
           { id: 'devoluciones', label: 'Devoluciones' },
           { id: 'whatsapp', label: 'WhatsApp' },
           { id: 'estudio', label: 'Cumbo Estudio' },
+          { id: 'voz-marca', label: 'Voz de marca' },
         ].map((t) => (
           <button
             key={t.id}
@@ -129,6 +130,7 @@ export default function PanelCumbo() {
         {tab === 'devoluciones' && <TabDevoluciones />}
         {tab === 'whatsapp' && <TabWhatsApp />}
         {tab === 'estudio' && <TabEstudio />}
+        {tab === 'voz-marca' && <TabVozMarca />}
       </div>
     </div>
   );
@@ -1315,6 +1317,152 @@ function TabEstudio() {
                 </option>
               ))}
             </select>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ================= VOZ DE MARCA (Motor de Voz — Fase 1 del documento) =================
+// Fuente de verdad de tono, tal como la pide el documento de
+// arquitectura: fragmentos reales de la Constitución del Ecosistema,
+// la Gobernanza de Conocimiento de Café, o conversaciones del
+// Sommelier que salieron especialmente bien — no prompts sueltos.
+// Cada función de IA de Cumbo Estudio lee estos ejemplos activos
+// antes de generar contenido.
+
+const CATEGORIA_VOZ = {
+  constitucion: 'Constitución del Ecosistema',
+  gobernanza: 'Gobernanza de Conocimiento de Café',
+  sommelier_destacado: 'Conversación destacada del Sommelier',
+  ficha_producto: 'Ficha de producto',
+  otro: 'Otro',
+};
+
+function TabVozMarca() {
+  const [ejemplos, setEjemplos] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [categoria, setCategoria] = useState('constitucion');
+  const [contenido, setContenido] = useState('');
+  const [guardando, setGuardando] = useState(false);
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    const { data } = await supabase.from('voz_de_marca').select('*').order('creado_en', { ascending: false });
+    setEjemplos(data || []);
+    setCargando(false);
+  }
+
+  async function agregar() {
+    if (!contenido.trim()) return;
+    setGuardando(true);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    await supabase.from('voz_de_marca').insert({ categoria, contenido: contenido.trim(), creado_por: user?.id });
+    setContenido('');
+    setGuardando(false);
+    cargar();
+  }
+
+  async function alternarActivo(ejemplo) {
+    await supabase.from('voz_de_marca').update({ activo: !ejemplo.activo }).eq('id', ejemplo.id);
+    cargar();
+  }
+
+  return (
+    <div>
+      <p style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)', marginBottom: 12 }}>
+        Esto es lo que la IA lee para sonar a Cumbo y no a marketing genérico de café — pegá acá fragmentos reales de tus documentos
+        maestros o conversaciones del Sommelier que hayan salido especialmente bien.
+      </p>
+
+      <div style={tarjeta}>
+        <select
+          value={categoria}
+          onChange={(e) => setCategoria(e.target.value)}
+          style={{
+            width: '100%',
+            border: '1px solid rgba(146,97,55,0.25)',
+            borderRadius: 10,
+            padding: '8px 10px',
+            fontSize: 12.5,
+            marginBottom: 8,
+          }}
+        >
+          {Object.entries(CATEGORIA_VOZ).map(([valor, nombre]) => (
+            <option key={valor} value={valor}>
+              {nombre}
+            </option>
+          ))}
+        </select>
+        <textarea
+          value={contenido}
+          onChange={(e) => setContenido(e.target.value)}
+          placeholder="Pegá acá el fragmento real…"
+          style={{
+            width: '100%',
+            border: '1px solid rgba(146,97,55,0.25)',
+            borderRadius: 10,
+            padding: 8,
+            fontSize: 12.5,
+            minHeight: 80,
+            marginBottom: 8,
+          }}
+        />
+        <button
+          onClick={agregar}
+          disabled={guardando || !contenido.trim()}
+          style={{
+            width: '100%',
+            border: 'none',
+            background: 'var(--accion)',
+            color: '#fff',
+            borderRadius: 999,
+            padding: 10,
+            fontSize: 12.5,
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            opacity: guardando || !contenido.trim() ? 0.6 : 1,
+          }}
+        >
+          {guardando ? 'Guardando…' : 'Agregar a la voz de marca'}
+        </button>
+      </div>
+
+      {cargando ? (
+        <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>
+      ) : ejemplos.length === 0 ? (
+        <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>
+          Todavía no cargaste ningún fragmento — mientras tanto, la IA genera con un tono genérico razonable.
+        </p>
+      ) : (
+        ejemplos.map((e) => (
+          <div key={e.id} style={{ ...tarjeta, opacity: e.activo ? 1 : 0.5 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
+              <span style={{ fontSize: 10, fontWeight: 'bold', color: 'var(--accion)', textTransform: 'uppercase' }}>
+                {CATEGORIA_VOZ[e.categoria]}
+              </span>
+              <button
+                onClick={() => alternarActivo(e)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: e.activo ? 'var(--canela-oscuro)' : 'var(--exito)',
+                  fontSize: 11,
+                  fontWeight: 'bold',
+                  cursor: 'pointer',
+                }}
+              >
+                {e.activo ? 'Desactivar' : 'Activar'}
+              </button>
+            </div>
+            <div style={{ fontSize: 12.5, color: 'var(--marron-tinta)' }}>{e.contenido}</div>
           </div>
         ))
       )}
