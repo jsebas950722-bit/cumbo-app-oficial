@@ -40,7 +40,15 @@ Deno.serve(async (req) => {
       .gt('stock', 0);
 
     const catalogoTexto = (cafes || [])
-      .map((c) => `- ${c.nombre} (id: ${c.id}) — ${c.fincas?.region}, proceso ${c.fincas?.proceso}, ${c.fincas?.especie}, ${c.fincas?.altitud_msnm} msnm — $${c.precio}`)
+      .map((c) => {
+        // Sin tipos generados desde el esquema real, TypeScript no sabe
+        // que productos→fincas es una relación de "muchos a uno" y a
+        // veces infiere `fincas` como array — en tiempo de ejecución
+        // PostgREST siempre devuelve un objeto único acá, pero este
+        // chequeo defensivo cubre ambos casos sin asumir a ciegas.
+        const finca = Array.isArray(c.fincas) ? c.fincas[0] : c.fincas;
+        return `- ${c.nombre} (id: ${c.id}) — ${finca?.region}, proceso ${finca?.proceso}, ${finca?.especie}, ${finca?.altitud_msnm} msnm — $${c.precio}`;
+      })
       .join('\n');
 
     const systemPrompt = `Eres Cumbito, el asistente de café de Cumbo — una plataforma colombiana de café de especialidad directo del caficultor. Tu tono es cercano, breve y cálido, nunca vendedor agresivo.

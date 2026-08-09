@@ -18,6 +18,11 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
+      - name: Instalar Deno (para verificar las Edge Functions)
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
       - name: Instalar dependencias
         run: npm ci
 
@@ -26,6 +31,9 @@ jobs:
 
       - name: Pruebas automatizadas
         run: npm run test
+
+      - name: Verificar tipos de las Edge Functions (Deno)
+        run: npm run check:functions
 
       - name: Compilar (con variables de entorno de ejemplo)
         run: cp .env.example .env && npm run build
