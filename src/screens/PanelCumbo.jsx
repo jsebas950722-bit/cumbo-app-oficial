@@ -96,6 +96,7 @@ export default function PanelCumbo() {
           { id: 'resumen', label: 'Resumen' },
           { id: 'contenido', label: 'Contenido' },
           { id: 'devoluciones', label: 'Devoluciones' },
+          { id: 'whatsapp', label: 'WhatsApp' },
         ].map((t) => (
           <button
             key={t.id}
@@ -123,6 +124,7 @@ export default function PanelCumbo() {
         {tab === 'resumen' && <TabResumen />}
         {tab === 'contenido' && <TabContenido />}
         {tab === 'devoluciones' && <TabDevoluciones />}
+        {tab === 'whatsapp' && <TabWhatsApp />}
       </div>
     </div>
   );
@@ -1007,6 +1009,136 @@ function TabDevoluciones() {
           )}
         </div>
       ))}
+    </div>
+  );
+}
+
+// ================= WHATSAPP (bandeja de conversaciones derivadas) =================
+// La IA responde sola lo que puede responder con datos reales — esto
+// es la bandeja de lo que decidió NO responder sola: pedidos de
+// hablar con una persona, reembolsos, reclamos, o casos donde no tuvo
+// información suficiente. El CEO responde de acá mismo y se manda de
+// verdad por WhatsApp.
+
+function TabWhatsApp() {
+  const [conversaciones, setConversaciones] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [respuestaPorTelefono, setRespuestaPorTelefono] = useState({});
+  const [enviando, setEnviando] = useState('');
+  const [errorEnvio, setErrorEnvio] = useState('');
+  const [soloDerivadas, setSoloDerivadas] = useState(true);
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    const { data } = await supabase.from('whatsapp_conversaciones').select('*').order('actualizado_en', { ascending: false });
+    setConversaciones(data || []);
+    setCargando(false);
+  }
+
+  async function enviarRespuesta(telefono) {
+    const mensaje = respuestaPorTelefono[telefono];
+    if (!mensaje?.trim()) return;
+    setEnviando(telefono);
+    setErrorEnvio('');
+    const { data, error } = await supabase.functions.invoke('responder-whatsapp-manual', { body: { telefono, mensaje } });
+    if (error || data?.error) {
+      setErrorEnvio(data?.error || 'No se pudo enviar el mensaje.');
+    } else {
+      setRespuestaPorTelefono((prev) => ({ ...prev, [telefono]: '' }));
+      cargar();
+    }
+    setEnviando('');
+  }
+
+  if (cargando) return <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>;
+
+  const visibles = soloDerivadas ? conversaciones.filter((c) => c.requiere_humano) : conversaciones;
+
+  return (
+    <div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12.5, color: 'var(--marron-tinta)', marginBottom: 12 }}>
+        <input type="checkbox" checked={soloDerivadas} onChange={(e) => setSoloDerivadas(e.target.checked)} />
+        Mostrar solo las que necesitan tu respuesta
+      </label>
+
+      {visibles.length === 0 ? (
+        <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>
+          {soloDerivadas ? 'Nada pendiente — la IA está resolviendo todo sola por ahora.' : 'Sin conversaciones todavía.'}
+        </p>
+      ) : (
+        visibles.map((c) => (
+          <div key={c.telefono} style={tarjeta}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+              <div style={{ fontWeight: 'bold', fontSize: 13, color: 'var(--marron-tinta)' }}>{c.telefono}</div>
+              {c.requiere_humano && (
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 'bold',
+                    color: '#fff',
+                    borderRadius: 9999,
+                    padding: '3px 10px',
+                    background: 'var(--alerta)',
+                  }}
+                >
+                  Necesita tu respuesta
+                </span>
+              )}
+            </div>
+
+            <div style={{ maxHeight: 180, overflowY: 'auto', marginBottom: 10, display: 'flex', flexDirection: 'column', gap: 6 }}>
+              {(c.historial || []).slice(-8).map((m, i) => (
+                <div
+                  key={i}
+                  style={{
+                    alignSelf: m.rol === 'usuario' ? 'flex-start' : 'flex-end',
+                    maxWidth: '85%',
+                    background: m.rol === 'usuario' ? 'var(--fondo-calido)' : 'var(--accion-suave)',
+                    borderRadius: 10,
+                    padding: '6px 10px',
+                    fontSize: 12,
+                    color: 'var(--marron-tinta)',
+                  }}
+                >
+                  {m.rol === 'ceo' && <strong>Tú: </strong>}
+                  {m.texto}
+                </div>
+              ))}
+            </div>
+
+            {c.requiere_humano && (
+              <div>
+                <textarea
+                  value={respuestaPorTelefono[c.telefono] || ''}
+                  onChange={(e) => setRespuestaPorTelefono((prev) => ({ ...prev, [c.telefono]: e.target.value }))}
+                  placeholder="Escribe tu respuesta…"
+                  style={{
+                    width: '100%',
+                    border: '1px solid rgba(146,97,55,0.25)',
+                    borderRadius: 10,
+                    padding: 8,
+                    fontSize: 12.5,
+                    minHeight: 50,
+                    marginBottom: 6,
+                  }}
+                />
+                {errorEnvio && <p style={{ fontSize: 11, color: 'var(--canela-oscuro)', marginBottom: 6 }}>{errorEnvio}</p>}
+                <button
+                  onClick={() => enviarRespuesta(c.telefono)}
+                  disabled={enviando === c.telefono || !respuestaPorTelefono[c.telefono]?.trim()}
+                  style={{ ...botonAccion, background: 'var(--accion)', width: '100%' }}
+                >
+                  {enviando === c.telefono ? 'Enviando…' : 'Enviar por WhatsApp'}
+                </button>
+              </div>
+            )}
+          </div>
+        ))
+      )}
     </div>
   );
 }

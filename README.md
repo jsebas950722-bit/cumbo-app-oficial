@@ -383,6 +383,83 @@ Y correr `cumbo_schema` hasta la migración de devoluciones (ver
 5. **Correr `cumbo_schema_wompi.sql`** (agrega `wompi_transaction_id` y
    `pasarela_pago` a `pedidos`).
 
+## Funciones con IA (Claude)
+
+Cuatro funciones, construidas en orden de menor a mayor complejidad —
+resuelven lo que el prototipo original hacía con `window.claude.complete`
+(solo existe en el entorno de prototipado, nunca hubiera funcionado en
+producción). En las cuatro, la llamada a la API de Claude vive en una
+Edge Function — la clave nunca toca el navegador, igual que con los
+tokens de pago.
+
+1. **Generar copy de producto** (CRM Vendedor) — botón "Generar con IA"
+   junto a la descripción, a partir del nombre/tipo/calidad ya escritos.
+2. **Clasificar calidad del café por foto** (Panel Cumbo) — lectura de
+   apoyo con visión de Claude sobre la foto del grano, antes de validar
+   una finca. Marcado explícitamente como asistencia, no como
+   certificación real — la calidad de taza se determina catando
+   (protocolo SCA), no con una foto.
+3. **Chat conversacional del Sommelier** — alternativa al quiz de 5
+   preguntas (que sigue existiendo tal cual). Siempre recibe el
+   catálogo real de café en stock y solo puede recomendar de esa
+   lista — el id que devuelve se verifica contra la base antes de
+   mostrarse, para que nunca aparezca un producto inventado.
+4. **Respuesta automática de WhatsApp** — la más grande, porque no es
+   solo IA, es una integración real con Twilio (WhatsApp Business API).
+
+### Cómo funciona la de WhatsApp
+
+- **`supabase/functions/whatsapp-webhook`** — recibe cada mensaje
+  entrante, valida que sea de verdad de Twilio (firma
+  `X-Twilio-Signature`, calculada a mano porque el SDK de Twilio no
+  corre nativo en Deno), y responde usando datos reales: el pedido más
+  reciente de ese número de teléfono y las preguntas frecuentes que
+  vos mismo editás en Panel Cumbo → Contenido.
+- **Política de derivación a un humano** (decisión de producto, no
+  solo de código): como operás Cumbo vos solo, "derivar a un humano"
+  significa marcar la conversación para que la veas en
+  **Panel Cumbo → WhatsApp**. La IA deriva cuando el cliente pide
+  hablar con una persona, cuando el tema es un reembolso/reclamo/pago,
+  o cuando no tiene información real para responder bien.
+- **`supabase/functions/responder-whatsapp-manual`** — cuando respondés
+  desde esa bandeja, se manda de verdad por WhatsApp.
+- **Límite real de WhatsApp que no se puede evitar:** si pasan más de
+  24 horas desde el último mensaje del cliente, WhatsApp no permite
+  mandar un mensaje libre — exige una plantilla pre-aprobada por Meta.
+  La función te avisa exactamente cuándo pasa esto, no falla en
+  silencio.
+
+### Secrets que esto necesita
+
+```bash
+supabase secrets set ANTHROPIC_API_KEY=sk-ant-...
+# Para WhatsApp específicamente (cuenta de Twilio — ver
+# twilio-account-setup y twilio-whatsapp-manage-senders):
+supabase secrets set TWILIO_ACCOUNT_SID=AC...
+supabase secrets set TWILIO_AUTH_TOKEN=...
+supabase secrets set TWILIO_WHATSAPP_NUMBER=whatsapp:+1415...
+```
+
+```bash
+supabase functions deploy generar-copy-producto
+supabase functions deploy clasificar-calidad-cafe
+supabase functions deploy sommelier-chat
+supabase functions deploy whatsapp-webhook
+supabase functions deploy responder-whatsapp-manual
+```
+
+Y en el Console de Twilio: Phone Numbers → tu sender de WhatsApp →
+"A Message Comes In" → apuntá a
+`https://TU_PROJECT_REF.supabase.co/functions/v1/whatsapp-webhook`.
+
+**Honestidad sobre lo que no pude probar:** igual que con DrEnvío,
+nadie mandó un mensaje real de WhatsApp contra esta integración
+todavía — necesita tu cuenta de Twilio con WhatsApp habilitado. Además,
+el sandbox de Twilio (para probar sin registrar un sender de
+producción) tiene sus propias limitaciones (50 mensajes/día, hay que
+volver a unirse cada 3 días) — para producción real vas a necesitar
+un sender de WhatsApp Business registrado de verdad.
+
 ## Envíos: transportadora real conectada (Interrapidísimo, Coordinadora, Servientrega)
 
 **Esto ya no es una tarifa estimada de referencia — se cotiza en vivo
@@ -582,19 +659,14 @@ Todo lo que quedó deliberadamente afuera durante la migración, agrupado
 porque varios ítems comparten la misma pieza de infraestructura que
 falta:
 
-1. **Función de backend con la API de Claude** (Supabase Edge Function) —
-   la necesitan tres cosas que hoy son manuales: clasificación de calidad
-   por foto y generación de copy en CRM Vendedor, y cualquier IA de Cumbo
-   Estudio. El prototipo las llamaba directo desde el navegador con
-   `window.claude.complete`, que solo existe en el entorno de prototipado.
-   Ahora es el siguiente bloqueante más importante — el pago real y la
-   transportadora ya están resueltos.
-2. **Cumbo Estudio** — no es una pantalla que faltara migrar, es un
+1. **Cumbo Estudio** — no es una pantalla que faltara migrar, es un
    módulo aparte de tu ecosistema (con sus propios tiers de suscripción)
-   que todavía no se ha empezado a construir.
-3. **Modelador financiero de Panel Cumbo** — competencia de precios,
+   que todavía no se ha empezado a construir. Ahora es el siguiente
+   bloqueante más importante — pago, transportadora y las funciones de
+   IA ya están resueltos.
+2. **Modelador financiero de Panel Cumbo** — competencia de precios,
    estacionalidad, ranking de marcas socias, facturación DIAN. Es
    inteligencia de negocio, no bloquea nada operativo.
-4. **Correo transaccional** (SendGrid/Resend, ya estaba en tu stack
+3. **Correo transaccional** (SendGrid/Resend, ya estaba en tu stack
    recomendado) — confirmación de pedidos, notificaciones de validación
    de finca, etc.
