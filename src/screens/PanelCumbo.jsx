@@ -14,6 +14,7 @@ import {
   AlertTriangle,
   TrendingUp,
   TrendingDown,
+  Sparkles,
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
@@ -134,10 +135,25 @@ function TabFichas() {
   const [cargando, setCargando] = useState(true);
   const [procesando, setProcesando] = useState(null);
   const [error, setError] = useState('');
+  const [analisisPorFinca, setAnalisisPorFinca] = useState({});
+  const [analizando, setAnalizando] = useState(null);
 
   useEffect(() => {
     cargar();
   }, []);
+
+  async function analizarGrano(finca) {
+    setAnalizando(finca.id);
+    const { data, error: errFn } = await supabase.functions.invoke('clasificar-calidad-cafe', {
+      body: { foto_grano_url: finca.certificacion_foto_grano },
+    });
+    if (!errFn && !data?.error) {
+      setAnalisisPorFinca((prev) => ({ ...prev, [finca.id]: data }));
+    } else {
+      setError('No se pudo analizar la foto del grano. Intenta de nuevo.');
+    }
+    setAnalizando(null);
+  }
 
   async function cargar() {
     setCargando(true);
@@ -234,6 +250,52 @@ function TabFichas() {
                 </a>
               )}
             </div>
+
+            {f.certificacion_foto_grano && (
+              <div style={{ marginBottom: 10 }}>
+                {!analisisPorFinca[f.id] ? (
+                  <button
+                    onClick={() => analizarGrano(f)}
+                    disabled={analizando === f.id}
+                    style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: 5,
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--accion)',
+                      fontSize: 11.5,
+                      fontWeight: 'bold',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    <Sparkles size={13} /> {analizando === f.id ? 'Analizando foto del grano…' : 'Analizar foto del grano con IA'}
+                  </button>
+                ) : (
+                  <div
+                    style={{
+                      background: 'var(--accion-suave)',
+                      borderRadius: 10,
+                      padding: '8px 10px',
+                      fontSize: 11.5,
+                      color: 'var(--marron-tinta)',
+                    }}
+                  >
+                    <div style={{ fontWeight: 'bold', marginBottom: 3 }}>
+                      Lectura de apoyo de la IA (confianza: {analisisPorFinca[f.id].confianza})
+                    </div>
+                    <div>{analisisPorFinca[f.id].resumen}</div>
+                    {analisisPorFinca[f.id].defectos_visibles?.length > 0 && (
+                      <div style={{ marginTop: 3 }}>Defectos visibles: {analisisPorFinca[f.id].defectos_visibles.join(', ')}</div>
+                    )}
+                    <div style={{ fontSize: 10, color: 'var(--cafe-oscuro)', marginTop: 4 }}>
+                      Esto es una lectura de apoyo, no reemplaza la catación real — úsala solo como referencia antes de decidir.
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             <div style={{ display: 'flex', gap: 8 }}>
               <button

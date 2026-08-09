@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Sparkles } from 'lucide-react';
 import { Link, Navigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
@@ -52,6 +52,30 @@ export default function CRMVendedor() {
   const [foto, setFoto] = useState(null);
   const [error, setError] = useState('');
   const [publicando, setPublicando] = useState(false);
+  const [generandoDescripcion, setGenerandoDescripcion] = useState(false);
+
+  async function generarDescripcionIA() {
+    setGenerandoDescripcion(true);
+    try {
+      const { data, error: errFn } = await supabase.functions.invoke('generar-copy-producto', {
+        body: {
+          nombre: form.nombre,
+          tipo: mapearMetodoATipo(form.metodo),
+          subtipo: form.metodo,
+          calidad: form.calidad,
+          caracteristicas_actuales: form.descripcion,
+        },
+      });
+      if (errFn || data?.error) {
+        setError('No se pudo generar la descripción. Intenta de nuevo, o escríbela tú mismo.');
+      } else {
+        setForm((f) => ({ ...f, descripcion: data.descripcion }));
+        setError('');
+      }
+    } finally {
+      setGenerandoDescripcion(false);
+    }
+  }
 
   useEffect(() => {
     if (sesion) cargarProductos();
@@ -275,6 +299,30 @@ export default function CRMVendedor() {
                   onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
                   placeholder="Características del producto"
                 />
+                <button
+                  type="button"
+                  onClick={generarDescripcionIA}
+                  disabled={generandoDescripcion || !form.nombre.trim()}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    marginTop: 6,
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--accion)',
+                    fontSize: 12,
+                    fontWeight: 'bold',
+                    cursor: generandoDescripcion || !form.nombre.trim() ? 'default' : 'pointer',
+                    opacity: generandoDescripcion || !form.nombre.trim() ? 0.5 : 1,
+                    padding: 0,
+                  }}
+                >
+                  <Sparkles size={14} /> {generandoDescripcion ? 'Generando…' : 'Generar con IA'}
+                </button>
+                {!form.nombre.trim() && (
+                  <p style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', margin: '4px 0 0' }}>Escribe el nombre del producto primero.</p>
+                )}
               </Campo>
 
               {error && <div style={mensajeError}>{error}</div>}
