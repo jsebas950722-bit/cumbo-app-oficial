@@ -1,13 +1,21 @@
 // supabase/functions/generar-contenido-estudio/index.ts
 //
-// Cumbo Estudio: genera un calendario de contenido de marketing (varias
-// piezas, cada una con día/plataforma/guion) para que un caficultor o
-// vendedor promocione lo que vende — a partir de sus productos REALES,
-// no genérico. Respeta el límite mensual de su plan (Chispa/Cosecha/
-// Finca Completa, ver suscripciones_estudio).
+// Cumbo Estudio 2.0: genera un EMBUDO de contenido real (no piezas
+// sueltas) a partir de la intención del vendedor — qué quiere lograr
+// (dar a conocer su finca, vender un producto puntual, etc.). Cada
+// pieza queda etiquetada con su etapa del embudo (atracción,
+// consideración, conversión) y un llamado a la acción coherente con
+// esa etapa.
 //
-// Requiere sesión válida (verify_jwt=true por defecto) y el secret
-// ANTHROPIC_API_KEY.
+// El vendedor elige el modelo de texto (Claude o Gemini) — ambos
+// generan texto igual de bien, es una preferencia del vendedor, no
+// una limitación técnica. Las imágenes SIEMPRE se generan con Gemini
+// en una función aparte (generar-imagen-estudio), porque Claude no
+// genera imágenes — eso no es una opción, es una limitación real del
+// modelo.
+//
+// Requiere sesión válida y el secret ANTHROPIC_API_KEY y/o
+// GEMINI_API_KEY (según el modelo que se use).
 
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 import { corsHeaders } from '../_shared/cors.ts';
@@ -20,14 +28,66 @@ import { corsHeaders } from '../_shared/cors.ts';
 const LIMITES_PLAN: Record<string, number> = { chispa: 3, cosecha: 15, finca_completa: 50 };
 const NOMBRE_PLAN: Record<string, string> = { chispa: 'Chispa', cosecha: 'Cosecha', finca_completa: 'Finca Completa' };
 
+function promptEmbudo(intencion: string, numPiezas: number, catalogoTexto: string, consentimientoAvatar: boolean) {
+  return `Sos un estratega de marketing para Cumbo, una plataforma colombiana de café de especialidad. Tu trabajo es diseñar un EMBUDO DE CONVERSIÓN completo — no piezas sueltas y desconectadas — a partir de esta intención del vendedor:
+
+"${intencion}"
+
+Catálogo real (nunca inventes productos que no estén acá):
+${catalogoTexto}
+
+${consentimientoAvatar ? 'El vendedor autorizó usar un avatar de IA — podés sugerir guiones para video corto con presentador.' : 'El vendedor NO autorizó avatar de IA — los guiones deben ser para foto/carrusel con texto, sin presentador ni video hablado.'}
+
+Diseñá ${numPiezas} piezas distribuidas de forma realista a lo largo de las 3 etapas de un embudo:
+- "atraccion": capta la atención de alguien que todavía no conoce el producto (curiosidad, historia, valor).
+- "consideracion": ya lo conoce, ahora hay que resolverle dudas y generar confianza (beneficios concretos, comparación, prueba social).
+- "conversion": está listo para comprar, necesita el empujón final (oferta clara, urgencia honesta, llamado a la acción directo).
+
+No pongas todas las piezas en la misma etapa — un embudo real avanza a la persona de una etapa a la siguiente.
+
+Respondé ÚNICAMENTE con un array JSON (sin texto adicional, sin \`\`\`), un objeto por pieza, con esta forma exacta:
+[{"dia": 1, "plataforma": "Instagram" | "WhatsApp Estados" | "Facebook", "etapa_embudo": "atraccion" | "consideracion" | "conversion", "guion": "texto corto y natural en español colombiano, listo para publicar", "cta": "el llamado a la acción exacto de esa pieza, ej: 'Escríbenos por WhatsApp' o 'Compra ahora en el Marketplace'"}]`;
+}
+
+async function generarConClaude(prompt: string) {
+  const resp = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST',
+    headers: {
+      'x-api-key': Deno.env.get('ANTHROPIC_API_KEY')!,
+      'anthropic-version': '2023-06-01',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 1500, messages: [{ role: 'user', content: prompt }] }),
+  });
+  if (!resp.ok) throw new Error(`Claude: ${await resp.text()}`);
+  const data = await resp.json();
+  const texto = data.content?.[0]?.text?.trim() || '[]';
+  return { texto, tokens: data.usage?.output_tokens || 0 };
+}
+
+async function generarConGemini(prompt: string) {
+  const resp = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent`, {
+    method: 'POST',
+    headers: { 'x-goog-api-key': Deno.env.get('GEMINI_API_KEY')!, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }),
+  });
+  if (!resp.ok) throw new Error(`Gemini: ${await resp.text()}`);
+  const data = await resp.json();
+  const texto = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim() || '[]';
+  const tokens = data.usageMetadata?.candidatesTokenCount || 0;
+  return { texto, tokens };
+}
+
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { tema, cantidad_piezas, consentimiento_avatar } = await req.json();
-    if (!tema?.trim()) {
-      return new Response(JSON.stringify({ error: 'Falta el tema del contenido' }), { status: 400, headers: corsHeaders });
+    const { tema, intencion, cantidad_piezas, consentimiento_avatar, modelo } = await req.json();
+    const intencionFinal = (intencion || tema || '').trim(); // 'tema' se mantiene por compatibilidad con la versión anterior
+    if (!intencionFinal) {
+      return new Response(JSON.stringify({ error: 'Falta contarnos qué querés lograr con este contenido' }), { status: 400, headers: corsHeaders });
     }
+    const modeloElegido = modelo === 'gemini' ? 'gemini' : 'claude';
     const numPiezas = Math.min(Math.max(parseInt(cantidad_piezas, 10) || 3, 1), 7);
 
     const supabaseComoUsuario = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!, {
@@ -89,41 +149,26 @@ Deno.serve(async (req) => {
       return new Response(JSON.stringify({ error: 'Todavía no tienes productos o una finca validada para generar contenido sobre ellos.' }), { status: 400, headers: corsHeaders });
     }
 
-    const prompt = `Sos un asistente de marketing para Cumbo, una plataforma colombiana de café de especialidad. Generá un calendario de contenido de ${numPiezas} piezas sobre el tema "${tema}", basado ÚNICAMENTE en este catálogo real (nunca inventes productos que no estén acá):
-${catalogoTexto}
+    const prompt = promptEmbudo(intencionFinal, numPiezas, catalogoTexto, !!consentimiento_avatar);
 
-${consentimiento_avatar ? 'El vendedor autorizó usar un avatar de IA — podés sugerir guiones para video corto con presentador.' : 'El vendedor NO autorizó avatar de IA — los guiones deben ser para foto/carrusel con texto, sin presentador ni video hablado.'}
-
-Respondé ÚNICAMENTE con un array JSON (sin texto adicional, sin \`\`\`) con esta forma exacta, un objeto por pieza:
-[{"dia": 1, "plataforma": "Instagram" | "WhatsApp Estados" | "Facebook", "guion": "texto corto y natural, listo para publicar, en español colombiano"}]`;
-
-    const resp = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'x-api-key': Deno.env.get('ANTHROPIC_API_KEY')!,
-        'anthropic-version': '2023-06-01',
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({ model: 'claude-sonnet-5', max_tokens: 1200, messages: [{ role: 'user', content: prompt }] }),
-    });
-
-    if (!resp.ok) {
-      console.error('Error de la API de Claude:', await resp.text());
-      return new Response(JSON.stringify({ error: 'No se pudo generar el contenido en este momento' }), { status: 502, headers: corsHeaders });
+    let resultado;
+    try {
+      resultado = modeloElegido === 'gemini' ? await generarConGemini(prompt) : await generarConClaude(prompt);
+    } catch (e) {
+      console.error(`Error generando con ${modeloElegido}:`, e);
+      return new Response(JSON.stringify({ error: `No se pudo generar el contenido con ${modeloElegido === 'gemini' ? 'Gemini' : 'Claude'} en este momento.` }), { status: 502, headers: corsHeaders });
     }
 
-    const data = await resp.json();
-    const textoRespuesta = data.content?.[0]?.text?.trim() || '[]';
     let piezas;
     try {
-      piezas = JSON.parse(textoRespuesta.replace(/^```json\s*|\s*```$/g, '')).map((p: Record<string, unknown>) => ({ ...p, estado: 'borrador' }));
+      piezas = JSON.parse(resultado.texto.replace(/^```json\s*|\s*```$/g, '')).map((p: Record<string, unknown>) => ({ ...p, estado: 'borrador', imagen_url: null }));
     } catch {
       return new Response(JSON.stringify({ error: 'La IA devolvió una respuesta que no se pudo interpretar. Intenta de nuevo.' }), { status: 502, headers: corsHeaders });
     }
 
     const { data: contenido, error: errInsert } = await supabase
       .from('contenido_marketing')
-      .insert({ vendedor_id: user.id, tema: tema.trim(), piezas, consentimiento_avatar: !!consentimiento_avatar, tokens_consumidos: data.usage?.output_tokens || 0 })
+      .insert({ vendedor_id: user.id, tema: intencionFinal, piezas, consentimiento_avatar: !!consentimiento_avatar, tokens_consumidos: resultado.tokens, modelo_usado: modeloElegido })
       .select()
       .single();
     if (errInsert) throw errInsert;

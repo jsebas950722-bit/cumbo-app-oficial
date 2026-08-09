@@ -23,6 +23,8 @@ export default [
         Image: 'readonly',
         SpeechSynthesisUtterance: 'readonly',
         alert: 'readonly',
+        setTimeout: 'readonly',
+        clearTimeout: 'readonly',
       },
     },
     settings: { react: { version: 'detect' } },

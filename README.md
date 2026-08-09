@@ -669,9 +669,12 @@ falta:
 
 ## Cumbo Estudio
 
-Generador de contenido de marketing con IA para caficultores y
-vendedores, con planes de uso mensual (**Chispa, Cosecha, Finca
-Completa** — nombres ya definidos en la Constitución del Ecosistema).
+Generador de **embudos de conversión** completos con IA para
+caficultores y vendedores — no piezas sueltas — con planes de uso
+mensual (**Chispa, Cosecha, Finca Completa** — nombres ya definidos en
+la Constitución del Ecosistema). Dashboard con **actualización en
+tiempo real** (Supabase Realtime), tanto para el vendedor como para el
+CEO.
 
 **Bug real encontrado al construir esto:** `contenido_marketing` tenía
 RLS activado desde el primer esquema, pero **cero políticas** — el
@@ -681,16 +684,59 @@ nadie podía leer ni escribir ahí, ni siquiera el CEO, desde el día 1.
 Nadie lo había notado porque Cumbo Estudio nunca se había construido
 hasta ahora. Corregido en la migración `20260101002200_cumbo_estudio.sql`.
 
-- **`supabase/functions/generar-contenido-estudio`** — genera un
-  calendario de varias piezas (día/plataforma/guion) sobre un tema,
-  usando ÚNICAMENTE los productos/fincas reales del vendedor — nunca
-  contenido genérico o inventado. Respeta el límite mensual de su plan
-  y se reinicia solo cada mes.
-- **`/cumbo-estudio`** (nueva pantalla, accesible desde Perfil) — el
-  vendedor ve su plan, cuánto lleva usado, genera contenido nuevo, y
-  ve su historial.
-- **Panel Cumbo → Cumbo Estudio** (pestaña nueva) — el CEO asigna el
-  plan de cada vendedor manualmente.
+### Embudo real, no posts sueltos
+
+El vendedor cuenta su **intención** (qué quiere lograr — dar a conocer
+su finca, vender un producto puntual, etc.), no un "tema" genérico. La
+IA diseña un embudo real: piezas repartidas entre **atracción**,
+**consideración** y **conversión**, cada una con su llamado a la
+acción — no un calendario de posts desconectados entre sí.
+
+### Dos modelos de IA — el vendedor elige
+
+El vendedor elige entre **Claude o Gemini** para el texto — es una
+preferencia suya, ambos generan texto igual de bien, no hay una
+limitación técnica de por medio. Las **imágenes SIEMPRE se generan con
+Gemini** (`gemini-3.1-flash-image-preview`), sin importar qué modelo se
+eligió para el texto — Claude no genera imágenes, así que ahí no hay
+elección posible, es una limitación real del modelo, no una decisión
+de diseño.
+
+### Tiempo real de verdad
+
+Tanto `/cumbo-estudio` (el vendedor) como Panel Cumbo → Cumbo Estudio
+(el CEO) están suscritos a Supabase Realtime sobre `contenido_marketing`
+y `suscripciones_estudio` — si generás contenido desde otra pestaña, o
+el CEO te cambia el plan, el dashboard se actualiza solo, sin recargar
+la página. Hay un indicador "En vivo" que confirma que está escuchando.
+
+- **`supabase/functions/generar-contenido-estudio`** — genera el
+  embudo usando ÚNICAMENTE los productos/fincas reales del vendedor —
+  nunca contenido genérico o inventado. Respeta el límite mensual de
+  su plan y se reinicia solo cada mes.
+- **`supabase/functions/generar-imagen-estudio`** — genera una imagen
+  real con Gemini para cualquier pieza del embudo, y la guarda en el
+  bucket `estudio-imagenes`.
+- **`/cumbo-estudio`** (Perfil → Cumbo Estudio) — el vendedor ve su
+  plan, cuánto lleva usado, diseña su embudo, y genera imágenes pieza
+  por pieza.
+- **Panel Cumbo → Cumbo Estudio** — dashboard con KPIs, gráfico de
+  actividad semanal, y la asignación de planes por vendedor.
+
+### Secrets adicionales que esto necesita
+
+```bash
+supabase secrets set GEMINI_API_KEY=...
+```
+
+Sacá tu clave en https://ai.google.dev — tiene un nivel gratuito
+generoso para empezar a probar (ver la documentación oficial para los
+límites vigentes).
+
+```bash
+supabase functions deploy generar-contenido-estudio
+supabase functions deploy generar-imagen-estudio
+```
 
 **Lo que esto NO hace todavía (siendo honesto sobre el alcance):**
 controla el *límite de uso*, no el *cobro* — cobrar la suscripción

@@ -1,43 +1,90 @@
 import { useEffect, useState } from 'react';
 import { Link, Navigate } from 'react-router-dom';
-import { ArrowLeft, Sparkles, Calendar, Instagram, MessageCircle, Facebook } from 'lucide-react';
+import {
+  ArrowLeft,
+  Sparkles,
+  Calendar,
+  Instagram,
+  MessageCircle,
+  Facebook,
+  Image as ImageIcon,
+  Radio,
+  Eye,
+  HeartHandshake,
+  ShoppingCart,
+} from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
 
-// Cumbo Estudio — módulo aparte del ecosistema (no era una pantalla
-// que faltara migrar del prototipo, nunca existió como tal). Genera
-// contenido de marketing real sobre lo que el vendedor/caficultor
-// vende de verdad, con un límite de uso mensual según su plan
-// (Chispa/Cosecha/Finca Completa — nombres ya definidos en la
-// Constitución del Ecosistema).
+// Cumbo Estudio 2.0 — a pedido: ahora es una herramienta de embudo de
+// conversión completo, no un generador de posts sueltos. El vendedor
+// cuenta su INTENCIÓN (qué quiere lograr), elige el modelo de texto
+// (Claude o Gemini — preferencia del vendedor, ambos generan texto
+// igual de bien), y la IA arma un embudo real: piezas repartidas entre
+// atracción, consideración y conversión, cada una con su llamado a la
+// acción. Las imágenes SIEMPRE se generan con Gemini (Claude no genera
+// imágenes — no es una opción, es una limitación real del modelo).
 //
-// IMPORTANTE: esto controla el LÍMITE de uso, no el cobro de la
-// suscripción — cobrar automáticamente cada mes es una pieza aparte
-// (suscripciones recurrentes), todavía no construida. Por ahora, subir
-// de plan se gestiona por WhatsApp con el equipo Cumbo.
+// El dashboard se actualiza en vivo (Supabase Realtime) — no hay que
+// recargar la página para ver contenido nuevo o el uso del mes.
 
 const NOMBRE_PLAN = { chispa: 'Chispa', cosecha: 'Cosecha', finca_completa: 'Finca Completa' };
 const LIMITE_PLAN = { chispa: 3, cosecha: 15, finca_completa: 50 };
 
 const ICONO_PLATAFORMA = { Instagram, Facebook, 'WhatsApp Estados': MessageCircle };
 
+const ETAPA_INFO = {
+  atraccion: { label: 'Atracción', Icono: Eye, color: '#185FA5' },
+  consideracion: { label: 'Consideración', Icono: HeartHandshake, color: '#854F0B' },
+  conversion: { label: 'Conversión', Icono: ShoppingCart, color: 'var(--exito)' },
+};
+
 export default function CumboEstudio() {
   const { sesion, cargando: cargandoSesion } = useSesion();
   const [suscripcion, setSuscripcion] = useState(null);
   const [historial, setHistorial] = useState([]);
-  const [tema, setTema] = useState('');
+  const [intencion, setIntencion] = useState('');
   const [cantidadPiezas, setCantidadPiezas] = useState(3);
+  const [modelo, setModelo] = useState('claude');
   const [consentimientoAvatar, setConsentimientoAvatar] = useState(false);
   const [generando, setGenerando] = useState(false);
+  const [generandoImagen, setGenerandoImagen] = useState('');
   const [error, setError] = useState('');
   const [cargando, setCargando] = useState(true);
+  const [enVivo, setEnVivo] = useState(false);
 
   useEffect(() => {
-    if (sesion) cargar();
+    if (!sesion) return;
+    cargar();
+
+    // Tiempo real: si algo cambia en tus tablas de Estudio (por
+    // ejemplo, generaste contenido desde otra pestaña, o el CEO te
+    // cambió el plan), el dashboard se actualiza solo, sin recargar.
+    const canal = supabase
+      .channel('cumbo-estudio-propio')
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'contenido_marketing', filter: `vendedor_id=eq.${sesion.user.id}` },
+        () => {
+          cargar();
+          setEnVivo(true);
+          setTimeout(() => setEnVivo(false), 2000);
+        }
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'suscripciones_estudio', filter: `vendedor_id=eq.${sesion.user.id}` },
+        () => cargar()
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canal);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sesion]);
 
   async function cargar() {
-    setCargando(true);
     const [{ data: sus }, { data: hist }] = await Promise.all([
       supabase.from('suscripciones_estudio').select('*').eq('vendedor_id', sesion.user.id).maybeSingle(),
       supabase.from('contenido_marketing').select('*').eq('vendedor_id', sesion.user.id).order('fecha_creacion', { ascending: false }),
@@ -48,22 +95,35 @@ export default function CumboEstudio() {
   }
 
   async function generar() {
-    if (!tema.trim()) return;
+    if (!intencion.trim()) return;
     setGenerando(true);
     setError('');
     try {
       const { data, error: errFn } = await supabase.functions.invoke('generar-contenido-estudio', {
-        body: { tema: tema.trim(), cantidad_piezas: cantidadPiezas, consentimiento_avatar: consentimientoAvatar },
+        body: { intencion: intencion.trim(), cantidad_piezas: cantidadPiezas, consentimiento_avatar: consentimientoAvatar, modelo },
       });
       if (errFn || data?.error) {
         setError(data?.error || 'No se pudo generar el contenido. Intenta de nuevo.');
       } else {
-        setTema('');
+        setIntencion('');
         cargar();
       }
     } finally {
       setGenerando(false);
     }
+  }
+
+  async function generarImagen(contenidoId, indice, guion) {
+    setGenerandoImagen(`${contenidoId}-${indice}`);
+    const { data, error: errFn } = await supabase.functions.invoke('generar-imagen-estudio', {
+      body: { contenido_id: contenidoId, indice_pieza: indice, descripcion: guion },
+    });
+    if (errFn || data?.error) {
+      setError(data?.error || 'No se pudo generar la imagen.');
+    } else {
+      cargar();
+    }
+    setGenerandoImagen('');
   }
 
   if (cargandoSesion) return null;
@@ -80,6 +140,18 @@ export default function CumboEstudio() {
           <ArrowLeft size={20} />
         </Link>
         <div style={{ fontWeight: 'bold', fontSize: 15, color: 'var(--marron-tinta)', flex: 1 }}>Cumbo Estudio</div>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 10,
+            fontWeight: 'bold',
+            color: enVivo ? 'var(--exito)' : '#b0a596',
+          }}
+        >
+          <Radio size={11} /> {enVivo ? 'Actualizado' : 'En vivo'}
+        </span>
       </div>
 
       <div style={{ maxWidth: 460, margin: '0 auto', padding: '14px 16px' }}>
@@ -96,6 +168,7 @@ export default function CumboEstudio() {
                 height: '100%',
                 width: `${Math.min(100, (usados / limite) * 100)}%`,
                 background: usados >= limite ? 'var(--canela-oscuro)' : 'var(--accion)',
+                transition: 'width .3s',
               }}
             />
           </div>
@@ -115,24 +188,65 @@ export default function CumboEstudio() {
               fontSize: 13,
               fontWeight: 'bold',
               color: 'var(--marron-tinta)',
-              marginBottom: 10,
+              marginBottom: 4,
             }}
           >
-            <Sparkles size={15} color="var(--accion)" /> Generar contenido nuevo
+            <Sparkles size={15} color="var(--accion)" /> Diseña tu embudo de conversión
           </div>
-          <input
-            value={tema}
-            onChange={(e) => setTema(e.target.value)}
-            placeholder="Tema: ej. 'Cosecha de octubre', 'Nueva prensa francesa'"
+          <p style={{ fontSize: 11, color: 'var(--cafe-oscuro)', margin: '0 0 10px' }}>
+            Contanos qué querés lograr — nosotros armamos el embudo completo (atracción → consideración → conversión), no solo posts
+            sueltos.
+          </p>
+          <textarea
+            value={intencion}
+            onChange={(e) => setIntencion(e.target.value)}
+            placeholder="Ej: 'Quiero vender más libras de mi café de Huila antes de fin de mes' o 'Nadie conoce mi finca todavía, quiero darla a conocer'"
             style={{
               width: '100%',
               border: '1px solid rgba(146,97,55,0.25)',
               borderRadius: 10,
               padding: '9px 12px',
               fontSize: 13,
-              marginBottom: 8,
+              minHeight: 60,
+              marginBottom: 10,
             }}
           />
+
+          <div style={{ display: 'flex', gap: 8, marginBottom: 10 }}>
+            <button
+              onClick={() => setModelo('claude')}
+              style={{
+                flex: 1,
+                border: `1.5px solid ${modelo === 'claude' ? 'var(--accion)' : 'rgba(146,97,55,0.25)'}`,
+                background: modelo === 'claude' ? 'var(--accion-suave)' : '#fff',
+                borderRadius: 10,
+                padding: '8px 0',
+                fontSize: 12,
+                fontWeight: 'bold',
+                color: 'var(--marron-tinta)',
+                cursor: 'pointer',
+              }}
+            >
+              Claude
+            </button>
+            <button
+              onClick={() => setModelo('gemini')}
+              style={{
+                flex: 1,
+                border: `1.5px solid ${modelo === 'gemini' ? 'var(--accion)' : 'rgba(146,97,55,0.25)'}`,
+                background: modelo === 'gemini' ? 'var(--accion-suave)' : '#fff',
+                borderRadius: 10,
+                padding: '8px 0',
+                fontSize: 12,
+                fontWeight: 'bold',
+                color: 'var(--marron-tinta)',
+                cursor: 'pointer',
+              }}
+            >
+              Gemini
+            </button>
+          </div>
+
           <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10 }}>
             <label style={{ fontSize: 12, color: 'var(--cafe-oscuro)' }}>Cantidad de piezas:</label>
             <select
@@ -140,7 +254,7 @@ export default function CumboEstudio() {
               onChange={(e) => setCantidadPiezas(e.target.value)}
               style={{ border: '1px solid rgba(146,97,55,0.25)', borderRadius: 8, padding: '4px 8px', fontSize: 12.5 }}
             >
-              {[1, 2, 3, 5, 7].map((n) => (
+              {[3, 5, 7].map((n) => (
                 <option key={n} value={n}>
                   {n}
                 </option>
@@ -183,7 +297,7 @@ export default function CumboEstudio() {
           )}
           <button
             onClick={generar}
-            disabled={generando || !tema.trim() || usados >= limite}
+            disabled={generando || !intencion.trim() || usados >= limite}
             style={{
               width: '100%',
               background: 'var(--accion)',
@@ -194,10 +308,10 @@ export default function CumboEstudio() {
               fontSize: 13.5,
               fontWeight: 'bold',
               cursor: 'pointer',
-              opacity: generando || !tema.trim() || usados >= limite ? 0.6 : 1,
+              opacity: generando || !intencion.trim() || usados >= limite ? 0.6 : 1,
             }}
           >
-            {generando ? 'Generando…' : 'Generar calendario de contenido'}
+            {generando ? 'Diseñando tu embudo…' : 'Generar embudo de conversión'}
           </button>
         </div>
 
@@ -212,44 +326,96 @@ export default function CumboEstudio() {
             gap: 6,
           }}
         >
-          <Calendar size={15} /> Tu contenido generado
+          <Calendar size={15} /> Tus embudos generados
         </div>
 
         {cargando ? (
           <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>
         ) : historial.length === 0 ? (
-          <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Todavía no generaste contenido.</p>
+          <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Todavía no generaste ningún embudo.</p>
         ) : (
           historial.map((c) => (
             <div key={c.id} style={{ background: 'var(--superficie)', borderRadius: 16, padding: 16, marginBottom: 12 }}>
-              <div style={{ fontWeight: 'bold', fontSize: 13, color: 'var(--marron-tinta)', marginBottom: 8 }}>{c.tema}</div>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+                <div style={{ fontWeight: 'bold', fontSize: 13, color: 'var(--marron-tinta)' }}>{c.tema}</div>
+                <span style={{ fontSize: 9.5, fontWeight: 'bold', color: 'var(--cafe-oscuro)', textTransform: 'uppercase' }}>
+                  {c.modelo_usado || 'claude'}
+                </span>
+              </div>
               {(c.piezas || []).map((p, i) => {
-                const Icono = ICONO_PLATAFORMA[p.plataforma] || MessageCircle;
+                const IconoPlataforma = ICONO_PLATAFORMA[p.plataforma] || MessageCircle;
+                const etapa = ETAPA_INFO[p.etapa_embudo] || ETAPA_INFO.atraccion;
+                const IconoEtapa = etapa.Icono;
                 return (
-                  <div
-                    key={i}
-                    style={{ display: 'flex', gap: 10, padding: '8px 0', borderTop: i > 0 ? '1px solid var(--fondo-calido)' : 'none' }}
-                  >
-                    <div
-                      style={{
-                        width: 28,
-                        height: 28,
-                        borderRadius: '50%',
-                        background: 'var(--accion-suave)',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                      }}
-                    >
-                      <Icono size={14} color="var(--accion)" />
-                    </div>
-                    <div>
-                      <div style={{ fontSize: 10.5, fontWeight: 'bold', color: 'var(--cafe-oscuro)' }}>
-                        Día {p.dia} · {p.plataforma}
+                  <div key={i} style={{ padding: '10px 0', borderTop: i > 0 ? '1px solid var(--fondo-calido)' : 'none' }}>
+                    <div style={{ display: 'flex', gap: 10, marginBottom: 6 }}>
+                      <div
+                        style={{
+                          width: 28,
+                          height: 28,
+                          borderRadius: '50%',
+                          background: 'var(--accion-suave)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          flexShrink: 0,
+                        }}
+                      >
+                        <IconoPlataforma size={14} color="var(--accion)" />
                       </div>
-                      <div style={{ fontSize: 12.5, color: 'var(--marron-tinta)' }}>{p.guion}</div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
+                          <span
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: 3,
+                              fontSize: 9.5,
+                              fontWeight: 'bold',
+                              color: etapa.color,
+                              background: `${etapa.color}1a`,
+                              borderRadius: 999,
+                              padding: '2px 8px',
+                            }}
+                          >
+                            <IconoEtapa size={10} /> {etapa.label}
+                          </span>
+                          <span style={{ fontSize: 10, color: 'var(--cafe-oscuro)' }}>
+                            Día {p.dia} · {p.plataforma}
+                          </span>
+                        </div>
+                        <div style={{ fontSize: 12.5, color: 'var(--marron-tinta)' }}>{p.guion}</div>
+                        {p.cta && <div style={{ fontSize: 11, color: 'var(--accion)', fontWeight: 'bold', marginTop: 4 }}>→ {p.cta}</div>}
+                      </div>
                     </div>
+
+                    {p.imagen_url ? (
+                      <img src={p.imagen_url} alt="" style={{ width: '100%', borderRadius: 10, marginTop: 4 }} />
+                    ) : (
+                      <button
+                        onClick={() => generarImagen(c.id, i, p.guion)}
+                        disabled={generandoImagen === `${c.id}-${i}`}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 5,
+                          background: 'none',
+                          border: '1px dashed rgba(146,97,55,0.35)',
+                          borderRadius: 10,
+                          padding: '7px 10px',
+                          color: 'var(--accion)',
+                          fontSize: 11,
+                          fontWeight: 'bold',
+                          cursor: 'pointer',
+                          marginTop: 4,
+                          width: '100%',
+                          justifyContent: 'center',
+                        }}
+                      >
+                        <ImageIcon size={13} />{' '}
+                        {generandoImagen === `${c.id}-${i}` ? 'Generando imagen con Gemini…' : 'Generar imagen con Gemini'}
+                      </button>
+                    )}
                   </div>
                 );
               })}

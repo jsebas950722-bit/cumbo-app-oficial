@@ -16,6 +16,7 @@ import {
   TrendingDown,
   Sparkles,
   Calendar,
+  Radio,
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
@@ -1161,9 +1162,27 @@ function TabEstudio() {
   const [serieSemanal, setSerieSemanal] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [guardando, setGuardando] = useState('');
+  const [enVivo, setEnVivo] = useState(false);
 
   useEffect(() => {
     cargar();
+
+    // Tiempo real: el dashboard del CEO se actualiza solo apenas
+    // cualquier vendedor genera contenido o cambia su plan — sin
+    // recargar la página.
+    const canal = supabase
+      .channel('cumbo-estudio-ceo')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'contenido_marketing' }, () => {
+        cargar();
+        setEnVivo(true);
+        setTimeout(() => setEnVivo(false), 2000);
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'suscripciones_estudio' }, () => cargar())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canal);
+    };
   }, []);
 
   async function cargar() {
@@ -1225,6 +1244,20 @@ function TabEstudio() {
 
   return (
     <div>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 10,
+            fontWeight: 'bold',
+            color: enVivo ? 'var(--exito)' : '#b0a596',
+          }}
+        >
+          <Radio size={11} /> {enVivo ? 'Actualizado' : 'En vivo'}
+        </span>
+      </div>
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
         <Kpi label="Contenidos este mes" valor={kpis.generacionesEsteMes} Icono={Sparkles} tendencia={kpis.tendencia} />
         <Kpi label="Piezas totales generadas" valor={kpis.piezasTotales} Icono={Calendar} />
