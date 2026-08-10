@@ -288,6 +288,7 @@ const PERFILES_REGION = [
 
 const METODOS = {
   v60: { nombre: 'V60', ratio: 16 },
+  chemex: { nombre: 'Chemex', ratio: 17 },
   prensa: { nombre: 'Prensa francesa', ratio: 15 },
   aeropress: { nombre: 'AeroPress', ratio: 14 },
   frio: { nombre: 'Café frío', ratio: 8 },
