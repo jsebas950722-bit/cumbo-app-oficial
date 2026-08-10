@@ -29,8 +29,11 @@ alter table public.productos add constraint chk_producto_origen check (
 -- ------------------------------------------------------------
 -- NOTA: certificacion_* son placeholders — reemplazar por las URLs
 -- reales de Supabase Storage cuando cada caficultor suba sus archivos.
--- caficultor_id queda null-safe con un usuario "sistema" de ejemplo:
--- en producción cada finca debe tener su caficultor_id real.
+-- Estas 3 fincas son de referencia/demostración para el Marketplace,
+-- no pertenecen a ningún caficultor real todavía — por eso
+-- caficultor_id queda en null (columna hecha nullable más abajo).
+
+alter table public.fincas alter column caficultor_id drop not null;
 
 insert into public.fincas (id, caficultor_id, nombre_finca, region, vereda, altitud_msnm, especie, proceso, precio_kilo_propuesto, certificacion_foto_cultivo, certificacion_foto_grano, certificacion_video, cedula_documento, estado)
 select
