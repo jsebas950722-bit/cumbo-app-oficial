@@ -2013,20 +2013,34 @@ function TabPergamino({ fincaPreseleccionada }) {
       ) : (
         compras.map((c) => (
           <div key={c.id} style={tarjeta}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, gap: 8 }}>
               <div style={{ fontWeight: 'bold', fontSize: 13, color: 'var(--marron-tinta)' }}>{c.fincas?.nombre_finca}</div>
-              <span
-                style={{
-                  fontSize: 10,
-                  fontWeight: 'bold',
-                  color: '#fff',
-                  background: c.estado_pago === 'pagado' ? 'var(--exito)' : 'var(--canela-oscuro)',
-                  borderRadius: 999,
-                  padding: '3px 9px',
-                }}
-              >
-                {c.estado_pago === 'pagado' ? 'Pagado' : 'Pendiente'}
-              </span>
+              <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 'bold',
+                    color: '#fff',
+                    background: c.verificado ? 'var(--verde-cumbre)' : '#b8860b',
+                    borderRadius: 999,
+                    padding: '3px 9px',
+                  }}
+                >
+                  {c.verificado ? 'Verificado por caficultor' : 'Sin verificar'}
+                </span>
+                <span
+                  style={{
+                    fontSize: 10,
+                    fontWeight: 'bold',
+                    color: '#fff',
+                    background: c.estado_pago === 'pagado' ? 'var(--exito)' : 'var(--canela-oscuro)',
+                    borderRadius: 999,
+                    padding: '3px 9px',
+                  }}
+                >
+                  {c.estado_pago === 'pagado' ? 'Pagado' : 'Pendiente'}
+                </span>
+              </div>
             </div>
             <div style={{ fontSize: 12, color: 'var(--cafe-oscuro)', marginBottom: 8 }}>
               {c.cantidad_bultos} bultos × {c.peso_por_bulto_kg}kg · {formatoCOP(c.precio_por_kilo)}/kg · Total:{' '}

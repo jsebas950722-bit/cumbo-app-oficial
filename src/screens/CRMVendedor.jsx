@@ -48,6 +48,7 @@ export default function CRMVendedor() {
   const [productos, setProductos] = useState([]);
   const [alertasInventario, setAlertasInventario] = useState([]);
   const [comprasPergamino, setComprasPergamino] = useState([]);
+  const [verificando, setVerificando] = useState('');
   const [ventas, setVentas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [form, setForm] = useState(FORM_INICIAL);
@@ -86,6 +87,13 @@ export default function CRMVendedor() {
   useEffect(() => {
     if (sesion && tab === 'ventas') cargarVentas();
   }, [sesion, tab]);
+
+  async function verificarPedido(id) {
+    setVerificando(id);
+    await supabase.from('compras_pergamino').update({ verificado: true, fecha_verificacion: new Date().toISOString() }).eq('id', id);
+    setComprasPergamino((prev) => prev.map((c) => (c.id === id ? { ...c, verificado: true } : c)));
+    setVerificando('');
+  }
 
   async function cargarProductos() {
     setCargando(true);
@@ -411,22 +419,38 @@ export default function CRMVendedor() {
                 ) : (
                   comprasPergamino.map((c) => (
                     <div key={c.id} style={tarjeta}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4, gap: 8 }}>
                         <div style={{ fontWeight: 'bold', fontSize: 13, color: 'var(--marron-tinta)' }}>
                           {c.cantidad_bultos} bulto{c.cantidad_bultos !== 1 ? 's' : ''} ({c.peso_por_bulto_kg}kg c/u)
                         </div>
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 'bold',
-                            color: '#fff',
-                            background: c.estado_pago === 'pagado' ? 'var(--exito)' : 'var(--canela-oscuro)',
-                            borderRadius: 999,
-                            padding: '3px 9px',
-                          }}
-                        >
-                          {c.estado_pago === 'pagado' ? 'Pagado' : 'Pendiente de pago'}
-                        </span>
+                        <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                          {c.verificado && (
+                            <span
+                              style={{
+                                fontSize: 10,
+                                fontWeight: 'bold',
+                                color: '#fff',
+                                background: 'var(--verde-cumbre)',
+                                borderRadius: 999,
+                                padding: '3px 9px',
+                              }}
+                            >
+                              Verificado
+                            </span>
+                          )}
+                          <span
+                            style={{
+                              fontSize: 10,
+                              fontWeight: 'bold',
+                              color: '#fff',
+                              background: c.estado_pago === 'pagado' ? 'var(--exito)' : 'var(--canela-oscuro)',
+                              borderRadius: 999,
+                              padding: '3px 9px',
+                            }}
+                          >
+                            {c.estado_pago === 'pagado' ? 'Pagado' : 'Pendiente de pago'}
+                          </span>
+                        </div>
                       </div>
                       <div style={{ fontSize: 12, color: 'var(--cafe-oscuro)' }}>
                         {formatoCOP(c.precio_por_kilo)}/kg · Total: {formatoCOP(c.total_pagado)}
@@ -434,6 +458,27 @@ export default function CRMVendedor() {
                       <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', marginTop: 4 }}>
                         {new Date(c.fecha_compra).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
                       </div>
+                      {!c.verificado && (
+                        <button
+                          onClick={() => verificarPedido(c.id)}
+                          disabled={verificando === c.id}
+                          style={{
+                            marginTop: 10,
+                            width: '100%',
+                            background: 'var(--verde-cumbre)',
+                            color: '#fff',
+                            border: 'none',
+                            padding: 9,
+                            borderRadius: 9999,
+                            fontSize: 12,
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                            opacity: verificando === c.id ? 0.6 : 1,
+                          }}
+                        >
+                          {verificando === c.id ? 'Verificando…' : 'Verificar que este pedido es correcto'}
+                        </button>
+                      )}
                     </div>
                   ))
                 )}

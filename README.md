@@ -795,6 +795,23 @@ muestra el formulario de publicar producto, ni la lista de productos
 propia, ni la pestaña de Ventas — solo la lista de sus despachos
 (`compras_pergamino`), sin pestañas, sin nada más.
 
+### El único seguimiento del caficultor: verificar el pedido
+
+Sebastián lo aclaró explícitamente: la conexión real es que cada
+"compra" que registra es un **pedido a un caficultor**, y lo único
+que el caficultor puede hacer con ese pedido es **verificarlo** —
+confirmar que los datos son correctos. No edita cantidad, no edita
+precio, no marca el pago — nada de eso. Un botón, una acción.
+
+- `compras_pergamino.verificado` (boolean) + `fecha_verificacion` —
+  el caficultor tiene un botón **"Verificar que este pedido es
+  correcto"** en cada despacho sin verificar; una vez que lo toca,
+  desaparece el botón y queda un badge "Verificado".
+- El CEO ve ese estado reflejado en Panel Cumbo → Compras Pergamino
+  ("Verificado por caficultor" / "Sin verificar"), como una señal más
+  además del estado de pago — dos cosas independientes, cada una con
+  su propio badge.
+
 ## Cumbo Estudio
 
 Generador de **embudos de conversión** completos con IA para
