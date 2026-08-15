@@ -114,14 +114,33 @@ export default function DirectorioCaficultores() {
                 <div style={{ fontSize: 12, color: 'var(--marron-tinta)', margin: '8px 0' }}>
                   {f.proceso} — {f.region} · {f.especie}
                 </div>
-                {enlaceWhatsapp ? (
-                  <a
-                    href={enlaceWhatsapp}
-                    target="_blank"
-                    rel="noreferrer"
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                  {enlaceWhatsapp ? (
+                    <a
+                      href={enlaceWhatsapp}
+                      target="_blank"
+                      rel="noreferrer"
+                      style={{
+                        display: 'inline-block',
+                        background: 'var(--verde-cumbre)',
+                        color: '#fff',
+                        textDecoration: 'none',
+                        borderRadius: 9999,
+                        padding: '8px 16px',
+                        fontSize: 12.5,
+                        fontWeight: 'bold',
+                      }}
+                    >
+                      WhatsApp →
+                    </a>
+                  ) : (
+                    <span style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)' }}>Sin WhatsApp registrado</span>
+                  )}
+                  <Link
+                    to={`/panel?tab=pergamino&finca=${f.id}`}
                     style={{
                       display: 'inline-block',
-                      background: 'var(--verde-cumbre)',
+                      background: 'var(--accion)',
                       color: '#fff',
                       textDecoration: 'none',
                       borderRadius: 9999,
@@ -130,11 +149,9 @@ export default function DirectorioCaficultores() {
                       fontWeight: 'bold',
                     }}
                   >
-                    WhatsApp →
-                  </a>
-                ) : (
-                  <span style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)' }}>Sin WhatsApp registrado</span>
-                )}
+                    Comprar pergamino
+                  </Link>
+                </div>
               </div>
             );
           })

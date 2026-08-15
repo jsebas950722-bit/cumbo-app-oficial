@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Link, Navigate } from 'react-router-dom';
+import { Link, Navigate, useSearchParams } from 'react-router-dom';
 import {
   ArrowLeft,
   CheckCircle,
@@ -62,7 +62,8 @@ const ETIQUETA_ESTADO = {
 
 export default function PanelCumbo() {
   const { sesion, perfil, cargando: cargandoSesion } = useSesion();
-  const [tab, setTab] = useState('fichas'); // 'fichas' | 'pedidos' | 'resumen'
+  const [searchParams] = useSearchParams();
+  const [tab, setTab] = useState(searchParams.get('tab') || 'fichas'); // 'fichas' | 'pedidos' | 'resumen' | ...
 
   if (cargandoSesion) return null;
   if (!sesion) return <Navigate to="/ingreso" replace />;
@@ -136,7 +137,7 @@ export default function PanelCumbo() {
         {tab === 'voz-marca' && <TabVozMarca />}
         {tab === 'conciliacion' && <TabConciliacion />}
         {tab === 'inventario' && <TabInventario />}
-        {tab === 'pergamino' && <TabPergamino />}
+        {tab === 'pergamino' && <TabPergamino fincaPreseleccionada={searchParams.get('finca')} />}
       </div>
     </div>
   );
@@ -1867,11 +1868,11 @@ function TabInventario() {
 // lo sigue controlando el CEO manualmente cuando corresponda ajustarlo
 // según lo que se procesa de cada compra.
 
-function TabPergamino() {
+function TabPergamino({ fincaPreseleccionada }) {
   const [fincas, setFincas] = useState([]);
   const [compras, setCompras] = useState([]);
   const [cargando, setCargando] = useState(true);
-  const [fincaId, setFincaId] = useState('');
+  const [fincaId, setFincaId] = useState(fincaPreseleccionada || '');
   const [cantidadBultos, setCantidadBultos] = useState('');
   const [pesoPorBulto, setPesoPorBulto] = useState('70');
   const [precioPorKilo, setPrecioPorKilo] = useState('');
