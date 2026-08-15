@@ -196,7 +196,9 @@ export default function CRMVendedor() {
         <Link to="/" style={{ color: 'var(--marron-tinta)', display: 'flex' }}>
           <ArrowLeft size={20} />
         </Link>
-        <div style={{ fontWeight: 'bold', fontSize: 15, color: 'var(--marron-tinta)', flex: 1 }}>CRM Vendedor</div>
+        <div style={{ fontWeight: 'bold', fontSize: 15, color: 'var(--marron-tinta)', flex: 1 }}>
+          {perfil?.rol === 'caficultor' ? 'Mi Inventario y Ventas' : 'CRM Vendedor'}
+        </div>
         <img src="/assets/logo-cumbo.png" alt="Cumbo" style={{ height: 22, width: 'auto' }} />
       </div>
 

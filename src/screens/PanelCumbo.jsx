@@ -203,6 +203,7 @@ function TabFichas() {
           await supabase.from('productos').insert({
             tipo: 'cafe_finca',
             finca_id: finca.id,
+            vendedor_id: finca.caficultor_id,
             nombre: finca.nombre_finca,
             formato: 'Libra',
             calidad: 'alta',

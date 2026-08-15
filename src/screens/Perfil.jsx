@@ -33,7 +33,10 @@ const ITEMS_TODOS = [
 ];
 
 const ITEMS_POR_ROL = {
-  caficultor: [{ to: '/portal-caficultor', label: 'Portal Caficultor', Icono: Sprout }],
+  caficultor: [
+    { to: '/portal-caficultor', label: 'Portal Caficultor', Icono: Sprout },
+    { to: '/crm-vendedor', label: 'Mi Inventario y Ventas', Icono: Store },
+  ],
   vendedor: [{ to: '/crm-vendedor', label: 'CRM Vendedor', Icono: Store }],
   ceo: [
     { to: '/panel', label: 'Panel Cumbo', Icono: LayoutGrid },
