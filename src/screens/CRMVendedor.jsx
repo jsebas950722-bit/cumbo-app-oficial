@@ -47,6 +47,7 @@ export default function CRMVendedor() {
   const [tab, setTab] = useState('productos'); // 'productos' | 'ventas'
   const [productos, setProductos] = useState([]);
   const [alertasInventario, setAlertasInventario] = useState([]);
+  const [comprasPergamino, setComprasPergamino] = useState([]);
   const [ventas, setVentas] = useState([]);
   const [cargando, setCargando] = useState(true);
   const [form, setForm] = useState(FORM_INICIAL);
@@ -102,6 +103,15 @@ export default function CRMVendedor() {
         )
         .eq('resuelta', false);
       setAlertasInventario(alertas || []);
+    }
+
+    if (perfil?.rol === 'caficultor') {
+      const { data: compras } = await supabase
+        .from('compras_pergamino')
+        .select('*')
+        .eq('caficultor_id', sesion.user.id)
+        .order('fecha_compra', { ascending: false });
+      setComprasPergamino(compras || []);
     }
   }
 
@@ -383,46 +393,106 @@ export default function CRMVendedor() {
                 Todavía no has publicado productos.
               </p>
             ) : (
-              productos.map((p) => (
-                <div key={p.id} style={tarjeta}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                    <div>
-                      <div style={{ fontWeight: 'bold', fontSize: 13.5, color: 'var(--marron-tinta)' }}>{p.nombre}</div>
-                      <div style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)' }}>
-                        {p.subtipo} · {etiquetaCalidad(p.calidad)}
+              productos.map((p) => {
+                const esCafeControladoPorCumbo = p.tipo === 'cafe_finca';
+                return (
+                  <div key={p.id} style={tarjeta}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                      <div>
+                        <div style={{ fontWeight: 'bold', fontSize: 13.5, color: 'var(--marron-tinta)' }}>{p.nombre}</div>
+                        <div style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)' }}>
+                          {p.subtipo} · {etiquetaCalidad(p.calidad)}
+                        </div>
+                        <div style={{ fontWeight: 'bold', marginTop: 4 }}>{formatoCOP(p.precio)}</div>
                       </div>
-                      <div style={{ fontWeight: 'bold', marginTop: 4 }}>{formatoCOP(p.precio)}</div>
+                      {!esCafeControladoPorCumbo && (
+                        <button
+                          onClick={() => alternarActivo(p)}
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: p.activo ? 'var(--canela-oscuro)' : 'var(--exito)',
+                            fontSize: 12,
+                            fontWeight: 'bold',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {p.activo ? 'Desactivar' : 'Activar'}
+                        </button>
+                      )}
                     </div>
-                    <button
-                      onClick={() => alternarActivo(p)}
+                    {!p.activo && !esCafeControladoPorCumbo && (
+                      <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', marginTop: 4 }}>
+                        Desactivado — no aparece en el Marketplace, pero se conserva en el historial de quien ya lo compró.
+                      </div>
+                    )}
+                    {esCafeControladoPorCumbo ? (
+                      <div
+                        style={{
+                          fontSize: 11.5,
+                          color: 'var(--cafe-oscuro)',
+                          marginTop: 10,
+                          background: 'var(--fondo-calido)',
+                          borderRadius: 10,
+                          padding: '8px 10px',
+                        }}
+                      >
+                        <strong>Stock actual: {p.stock} libras.</strong> El inventario del café terminado lo gestiona el equipo Cumbo — vos
+                        vendés tu cosecha en pergamino, y acá abajo ves el registro de esas ventas.
+                      </div>
+                    ) : (
+                      <label
+                        style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 12, color: 'var(--cafe-oscuro)' }}
+                      >
+                        Stock:
+                        <input
+                          type="number"
+                          defaultValue={p.stock}
+                          onBlur={(e) => actualizarStock(p.id, e.target.value)}
+                          style={{ ...inputStyle, width: 70, padding: '6px 8px' }}
+                        />
+                      </label>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </>
+        )}
+
+        {tab === 'productos' && perfil?.rol === 'caficultor' && (
+          <>
+            <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)', margin: '16px 0 10px' }}>
+              Tus ventas de café pergamino a Cumbo
+            </div>
+            {comprasPergamino.length === 0 ? (
+              <p style={{ fontSize: 12.5, color: 'var(--cafe-oscuro)' }}>Todavía no hay compras registradas.</p>
+            ) : (
+              comprasPergamino.map((c) => (
+                <div key={c.id} style={tarjeta}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                    <div style={{ fontWeight: 'bold', fontSize: 13, color: 'var(--marron-tinta)' }}>
+                      {c.cantidad_bultos} bulto{c.cantidad_bultos !== 1 ? 's' : ''} ({c.peso_por_bulto_kg}kg c/u)
+                    </div>
+                    <span
                       style={{
-                        background: 'none',
-                        border: 'none',
-                        color: p.activo ? 'var(--canela-oscuro)' : 'var(--exito)',
-                        fontSize: 12,
+                        fontSize: 10,
                         fontWeight: 'bold',
-                        cursor: 'pointer',
+                        color: '#fff',
+                        background: c.estado_pago === 'pagado' ? 'var(--exito)' : 'var(--canela-oscuro)',
+                        borderRadius: 999,
+                        padding: '3px 9px',
                       }}
                     >
-                      {p.activo ? 'Desactivar' : 'Activar'}
-                    </button>
+                      {c.estado_pago === 'pagado' ? 'Pagado' : 'Pendiente de pago'}
+                    </span>
                   </div>
-                  {!p.activo && (
-                    <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', marginTop: 4 }}>
-                      Desactivado — no aparece en el Marketplace, pero se conserva en el historial de quien ya lo compró.
-                    </div>
-                  )}
-                  <label
-                    style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 12, color: 'var(--cafe-oscuro)' }}
-                  >
-                    Stock:
-                    <input
-                      type="number"
-                      defaultValue={p.stock}
-                      onBlur={(e) => actualizarStock(p.id, e.target.value)}
-                      style={{ ...inputStyle, width: 70, padding: '6px 8px' }}
-                    />
-                  </label>
+                  <div style={{ fontSize: 12, color: 'var(--cafe-oscuro)' }}>
+                    {formatoCOP(c.precio_por_kilo)}/kg · Total: {formatoCOP(c.total_pagado)}
+                  </div>
+                  <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', marginTop: 4 }}>
+                    {new Date(c.fecha_compra).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
+                  </div>
                 </div>
               ))
             )}

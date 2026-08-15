@@ -103,6 +103,7 @@ export default function PanelCumbo() {
           { id: 'voz-marca', label: 'Voz de marca' },
           { id: 'conciliacion', label: 'Conciliación de pagos' },
           { id: 'inventario', label: 'Inventario' },
+          { id: 'pergamino', label: 'Compras Pergamino' },
         ].map((t) => (
           <button
             key={t.id}
@@ -135,6 +136,7 @@ export default function PanelCumbo() {
         {tab === 'voz-marca' && <TabVozMarca />}
         {tab === 'conciliacion' && <TabConciliacion />}
         {tab === 'inventario' && <TabInventario />}
+        {tab === 'pergamino' && <TabPergamino />}
       </div>
     </div>
   );
@@ -1850,6 +1852,202 @@ function TabInventario() {
               <span style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)' }}>{a.productos?.usuarios?.nombre_completo || 'Vendedor'}</span>
             </div>
             <div style={{ fontSize: 12.5, color: 'var(--marron-tinta)' }}>{a.detalle}</div>
+          </div>
+        ))
+      )}
+    </div>
+  );
+}
+
+// ================= COMPRAS PERGAMINO (registro de compra a caficultores) =================
+// Cumbo compra el café en pergamino (sin procesar) a los caficultores
+// por bultos — es una compra mayorista, no una venta directa del
+// caficultor en el Marketplace. El stock del producto terminado
+// (Panel Cumbo → Inventario, o el propio campo `stock` en `productos`)
+// lo sigue controlando el CEO manualmente cuando corresponda ajustarlo
+// según lo que se procesa de cada compra.
+
+function TabPergamino() {
+  const [fincas, setFincas] = useState([]);
+  const [compras, setCompras] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [fincaId, setFincaId] = useState('');
+  const [cantidadBultos, setCantidadBultos] = useState('');
+  const [pesoPorBulto, setPesoPorBulto] = useState('70');
+  const [precioPorKilo, setPrecioPorKilo] = useState('');
+  const [notas, setNotas] = useState('');
+  const [guardando, setGuardando] = useState(false);
+
+  useEffect(() => {
+    cargar();
+  }, []);
+
+  async function cargar() {
+    setCargando(true);
+    const [{ data: fincasData }, { data: comprasData }] = await Promise.all([
+      supabase.from('fincas').select('id, nombre_finca, region').eq('estado', 'validada').order('nombre_finca'),
+      supabase.from('compras_pergamino').select('*, fincas(nombre_finca)').order('fecha_compra', { ascending: false }).limit(30),
+    ]);
+    setFincas(fincasData || []);
+    setCompras(comprasData || []);
+    setCargando(false);
+  }
+
+  async function registrarCompra() {
+    if (!fincaId || !cantidadBultos || !precioPorKilo) return;
+    setGuardando(true);
+    const { data: fincaCompleta } = await supabase.from('fincas').select('caficultor_id').eq('id', fincaId).single();
+    await supabase.from('compras_pergamino').insert({
+      finca_id: fincaId,
+      caficultor_id: fincaCompleta?.caficultor_id || null,
+      cantidad_bultos: parseInt(cantidadBultos, 10),
+      peso_por_bulto_kg: parseFloat(pesoPorBulto) || 70,
+      precio_por_kilo: parseFloat(precioPorKilo),
+      notas: notas || null,
+    });
+    setFincaId('');
+    setCantidadBultos('');
+    setPrecioPorKilo('');
+    setNotas('');
+    setGuardando(false);
+    cargar();
+  }
+
+  async function marcarPagado(id) {
+    await supabase.from('compras_pergamino').update({ estado_pago: 'pagado' }).eq('id', id);
+    cargar();
+  }
+
+  if (cargando) return <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>;
+
+  return (
+    <div>
+      <div style={tarjeta}>
+        <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)', marginBottom: 10 }}>
+          Registrar compra de pergamino
+        </div>
+        <select
+          value={fincaId}
+          onChange={(e) => setFincaId(e.target.value)}
+          style={{
+            width: '100%',
+            border: '1px solid rgba(146,97,55,0.25)',
+            borderRadius: 10,
+            padding: '8px 10px',
+            fontSize: 12.5,
+            marginBottom: 8,
+          }}
+        >
+          <option value="">Elegir finca…</option>
+          {fincas.map((f) => (
+            <option key={f.id} value={f.id}>
+              {f.nombre_finca} ({f.region})
+            </option>
+          ))}
+        </select>
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
+          <input
+            type="number"
+            value={cantidadBultos}
+            onChange={(e) => setCantidadBultos(e.target.value)}
+            placeholder="Bultos"
+            style={{ flex: 1, border: '1px solid rgba(146,97,55,0.25)', borderRadius: 10, padding: '8px 10px', fontSize: 12.5 }}
+          />
+          <input
+            type="number"
+            value={pesoPorBulto}
+            onChange={(e) => setPesoPorBulto(e.target.value)}
+            placeholder="Kg/bulto"
+            style={{ flex: 1, border: '1px solid rgba(146,97,55,0.25)', borderRadius: 10, padding: '8px 10px', fontSize: 12.5 }}
+          />
+          <input
+            type="number"
+            value={precioPorKilo}
+            onChange={(e) => setPrecioPorKilo(e.target.value)}
+            placeholder="$/kg"
+            style={{ flex: 1, border: '1px solid rgba(146,97,55,0.25)', borderRadius: 10, padding: '8px 10px', fontSize: 12.5 }}
+          />
+        </div>
+        <input
+          value={notas}
+          onChange={(e) => setNotas(e.target.value)}
+          placeholder="Notas (opcional)"
+          style={{
+            width: '100%',
+            border: '1px solid rgba(146,97,55,0.25)',
+            borderRadius: 10,
+            padding: '8px 10px',
+            fontSize: 12.5,
+            marginBottom: 10,
+          }}
+        />
+        {cantidadBultos && pesoPorBulto && precioPorKilo && (
+          <div style={{ fontSize: 12, color: 'var(--cafe-oscuro)', marginBottom: 10 }}>
+            Total: <strong>{formatoCOP(cantidadBultos * pesoPorBulto * precioPorKilo)}</strong>
+          </div>
+        )}
+        <button
+          onClick={registrarCompra}
+          disabled={guardando || !fincaId || !cantidadBultos || !precioPorKilo}
+          style={{
+            width: '100%',
+            background: 'var(--accion)',
+            color: '#fff',
+            border: 'none',
+            padding: 11,
+            borderRadius: 9999,
+            fontSize: 12.5,
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            opacity: guardando || !fincaId || !cantidadBultos || !precioPorKilo ? 0.6 : 1,
+          }}
+        >
+          {guardando ? 'Guardando…' : 'Registrar compra'}
+        </button>
+      </div>
+
+      <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)', margin: '16px 0 10px' }}>Compras recientes</div>
+      {compras.length === 0 ? (
+        <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Sin compras registradas todavía.</p>
+      ) : (
+        compras.map((c) => (
+          <div key={c.id} style={tarjeta}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+              <div style={{ fontWeight: 'bold', fontSize: 13, color: 'var(--marron-tinta)' }}>{c.fincas?.nombre_finca}</div>
+              <span
+                style={{
+                  fontSize: 10,
+                  fontWeight: 'bold',
+                  color: '#fff',
+                  background: c.estado_pago === 'pagado' ? 'var(--exito)' : 'var(--canela-oscuro)',
+                  borderRadius: 999,
+                  padding: '3px 9px',
+                }}
+              >
+                {c.estado_pago === 'pagado' ? 'Pagado' : 'Pendiente'}
+              </span>
+            </div>
+            <div style={{ fontSize: 12, color: 'var(--cafe-oscuro)', marginBottom: 8 }}>
+              {c.cantidad_bultos} bultos × {c.peso_por_bulto_kg}kg · {formatoCOP(c.precio_por_kilo)}/kg · Total:{' '}
+              {formatoCOP(c.total_pagado)}
+            </div>
+            {c.estado_pago !== 'pagado' && (
+              <button
+                onClick={() => marcarPagado(c.id)}
+                style={{
+                  background: 'none',
+                  border: '1px solid rgba(146,97,55,0.25)',
+                  borderRadius: 999,
+                  padding: '6px 14px',
+                  fontSize: 11.5,
+                  fontWeight: 'bold',
+                  color: 'var(--marron-tinta)',
+                  cursor: 'pointer',
+                }}
+              >
+                Marcar como pagado
+              </button>
+            )}
           </div>
         ))
       )}

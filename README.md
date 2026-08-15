@@ -759,6 +759,33 @@ falta:
    recomendado) — confirmación de pedidos, notificaciones de validación
    de finca, etc.
 
+## Café pergamino: el modelo de negocio real
+
+**Corrección importante sobre lo que se construyó antes:** el modelo
+real no es que el caficultor gestione su propio stock de producto
+terminado en el Marketplace — Cumbo **compra el café en pergamino
+(sin procesar) a los caficultores por bultos**, y es Cumbo quien
+controla exclusivamente el stock del producto terminado que se vende.
+Una versión anterior le había dado al caficultor permiso de editar
+ese stock directamente, lo cual no correspondía a como funciona el
+negocio de verdad — corregido.
+
+- **El stock de café en `productos` solo lo edita el CEO** —
+  corregido con una policy que excluye explícitamente `tipo =
+  'cafe_finca'` de los permisos de edición del caficultor, sin
+  importar a quién apunte `vendedor_id` (que se mantiene solo para
+  que el caficultor pueda *ver* su producto, no para editarlo).
+- **`compras_pergamino`** — el registro real de qué le compra Cumbo a
+  cada caficultor: cantidad de bultos, peso por bulto (70kg es el
+  estándar en Colombia), precio por kilo, total calculado
+  automáticamente, y estado de pago.
+- **Panel Cumbo → Compras Pergamino** — el CEO registra cada compra y
+  marca cuándo se pagó.
+- **Perfil del caficultor → Mi Inventario y Ventas** — ahora muestra
+  el producto de café como informativo (stock actual, gestionado por
+  Cumbo) y el historial real de sus ventas de pergamino, de solo
+  lectura.
+
 ## Cumbo Estudio
 
 Generador de **embudos de conversión** completos con IA para
