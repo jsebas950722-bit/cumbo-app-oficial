@@ -212,162 +212,170 @@ export default function CRMVendedor() {
         <img src="/assets/logo-cumbo.png" alt="Cumbo" style={{ height: 22, width: 'auto' }} />
       </div>
 
-      <div style={{ display: 'flex', gap: 8, padding: '14px 16px 6px', maxWidth: 460, margin: '0 auto' }}>
-        {[
-          { id: 'productos', label: 'Mis productos' },
-          { id: 'ventas', label: 'Ventas' },
-        ].map((t) => (
-          <button
-            key={t.id}
-            onClick={() => setTab(t.id)}
-            style={{
-              flex: 1,
-              border: 'none',
-              borderRadius: 9999,
-              padding: '9px 6px',
-              fontSize: 12,
-              fontWeight: 'bold',
-              cursor: 'pointer',
-              background: tab === t.id ? 'var(--accion)' : 'var(--superficie)',
-              color: tab === t.id ? '#fff' : 'var(--cafe-oscuro)',
-            }}
-          >
-            {t.label}
-          </button>
-        ))}
-      </div>
+      {perfil?.rol !== 'caficultor' && (
+        <div style={{ display: 'flex', gap: 8, padding: '14px 16px 6px', maxWidth: 460, margin: '0 auto' }}>
+          {[
+            { id: 'productos', label: 'Mis productos' },
+            { id: 'ventas', label: 'Ventas' },
+          ].map((t) => (
+            <button
+              key={t.id}
+              onClick={() => setTab(t.id)}
+              style={{
+                flex: 1,
+                border: 'none',
+                borderRadius: 9999,
+                padding: '9px 6px',
+                fontSize: 12,
+                fontWeight: 'bold',
+                cursor: 'pointer',
+                background: tab === t.id ? 'var(--accion)' : 'var(--superficie)',
+                color: tab === t.id ? '#fff' : 'var(--cafe-oscuro)',
+              }}
+            >
+              {t.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       <div style={{ maxWidth: 460, margin: '0 auto', padding: '10px 16px' }}>
         {tab === 'productos' && (
           <>
-            {/* Formulario para publicar */}
-            <div style={{ background: '#fff', borderRadius: 18, padding: 18, marginBottom: 16 }}>
-              <div style={{ fontSize: 13.5, fontWeight: 'bold', color: 'var(--marron-tinta)', marginBottom: 10 }}>
-                Publicar producto nuevo
-              </div>
+            {perfil?.rol !== 'caficultor' && (
+              <>
+                {/* Formulario para publicar */}
+                <div style={{ background: '#fff', borderRadius: 18, padding: 18, marginBottom: 16 }}>
+                  <div style={{ fontSize: 13.5, fontWeight: 'bold', color: 'var(--marron-tinta)', marginBottom: 10 }}>
+                    Publicar producto nuevo
+                  </div>
 
-              <Campo label="Nombre">
-                <input
-                  style={inputStyle}
-                  value={form.nombre}
-                  onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
-                  placeholder="Ej: V60 Hario cerámica"
-                />
-              </Campo>
-              <Campo label="Método / categoría">
-                <select style={inputStyle} value={form.metodo} onChange={(e) => setForm((f) => ({ ...f, metodo: e.target.value }))}>
-                  {METODOS.map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
-              <Campo label="Calidad">
-                <select style={inputStyle} value={form.calidad} onChange={(e) => setForm((f) => ({ ...f, calidad: e.target.value }))}>
-                  {CALIDADES.map((c) => (
-                    <option key={c.db} value={c.db}>
-                      {c.ui}
-                    </option>
-                  ))}
-                </select>
-              </Campo>
-              <div style={{ display: 'flex', gap: 10 }}>
-                <Campo label="Precio (COP)" flex>
-                  <input
-                    style={inputStyle}
-                    value={form.precio}
-                    onChange={(e) => setForm((f) => ({ ...f, precio: e.target.value }))}
-                    placeholder="85000"
-                  />
-                </Campo>
-                <Campo label="Stock inicial" flex>
-                  <input
-                    style={inputStyle}
-                    value={form.stock}
-                    onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))}
-                    placeholder="20"
-                  />
-                </Campo>
-              </div>
-              <Campo label="Peso por unidad, en kg (para cotizar el envío)">
-                <input
-                  style={inputStyle}
-                  value={form.peso}
-                  onChange={(e) => setForm((f) => ({ ...f, peso: e.target.value }))}
-                  placeholder="Ej: 0.5"
-                />
-              </Campo>
-              <Campo label="Foto del producto (opcional)">
-                <div
-                  style={{
-                    border: '1.5px dashed rgba(146,97,55,0.35)',
-                    borderRadius: 12,
-                    padding: '10px 12px',
-                    fontSize: 12,
-                    color: foto ? 'var(--marron-tinta)' : 'var(--cafe-oscuro)',
-                  }}
-                >
-                  {foto ? foto.name : 'Sin foto — se muestra un ícono genérico'}
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => setFoto(e.target.files?.[0] || null)}
-                    style={{ display: 'block', marginTop: 6, fontSize: 11, width: '100%' }}
-                  />
+                  <Campo label="Nombre">
+                    <input
+                      style={inputStyle}
+                      value={form.nombre}
+                      onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
+                      placeholder="Ej: V60 Hario cerámica"
+                    />
+                  </Campo>
+                  <Campo label="Método / categoría">
+                    <select style={inputStyle} value={form.metodo} onChange={(e) => setForm((f) => ({ ...f, metodo: e.target.value }))}>
+                      {METODOS.map((m) => (
+                        <option key={m} value={m}>
+                          {m}
+                        </option>
+                      ))}
+                    </select>
+                  </Campo>
+                  <Campo label="Calidad">
+                    <select style={inputStyle} value={form.calidad} onChange={(e) => setForm((f) => ({ ...f, calidad: e.target.value }))}>
+                      {CALIDADES.map((c) => (
+                        <option key={c.db} value={c.db}>
+                          {c.ui}
+                        </option>
+                      ))}
+                    </select>
+                  </Campo>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <Campo label="Precio (COP)" flex>
+                      <input
+                        style={inputStyle}
+                        value={form.precio}
+                        onChange={(e) => setForm((f) => ({ ...f, precio: e.target.value }))}
+                        placeholder="85000"
+                      />
+                    </Campo>
+                    <Campo label="Stock inicial" flex>
+                      <input
+                        style={inputStyle}
+                        value={form.stock}
+                        onChange={(e) => setForm((f) => ({ ...f, stock: e.target.value }))}
+                        placeholder="20"
+                      />
+                    </Campo>
+                  </div>
+                  <Campo label="Peso por unidad, en kg (para cotizar el envío)">
+                    <input
+                      style={inputStyle}
+                      value={form.peso}
+                      onChange={(e) => setForm((f) => ({ ...f, peso: e.target.value }))}
+                      placeholder="Ej: 0.5"
+                    />
+                  </Campo>
+                  <Campo label="Foto del producto (opcional)">
+                    <div
+                      style={{
+                        border: '1.5px dashed rgba(146,97,55,0.35)',
+                        borderRadius: 12,
+                        padding: '10px 12px',
+                        fontSize: 12,
+                        color: foto ? 'var(--marron-tinta)' : 'var(--cafe-oscuro)',
+                      }}
+                    >
+                      {foto ? foto.name : 'Sin foto — se muestra un ícono genérico'}
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setFoto(e.target.files?.[0] || null)}
+                        style={{ display: 'block', marginTop: 6, fontSize: 11, width: '100%' }}
+                      />
+                    </div>
+                  </Campo>
+                  <Campo label="Descripción (opcional)">
+                    <textarea
+                      style={{ ...inputStyle, minHeight: 60 }}
+                      value={form.descripcion}
+                      onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
+                      placeholder="Características del producto"
+                    />
+                    <button
+                      type="button"
+                      onClick={generarDescripcionIA}
+                      disabled={generandoDescripcion || !form.nombre.trim()}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: 6,
+                        marginTop: 6,
+                        background: 'none',
+                        border: 'none',
+                        color: 'var(--accion)',
+                        fontSize: 12,
+                        fontWeight: 'bold',
+                        cursor: generandoDescripcion || !form.nombre.trim() ? 'default' : 'pointer',
+                        opacity: generandoDescripcion || !form.nombre.trim() ? 0.5 : 1,
+                        padding: 0,
+                      }}
+                    >
+                      <Sparkles size={14} /> {generandoDescripcion ? 'Generando…' : 'Generar con IA'}
+                    </button>
+                    {!form.nombre.trim() && (
+                      <p style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', margin: '4px 0 0' }}>
+                        Escribe el nombre del producto primero.
+                      </p>
+                    )}
+                  </Campo>
+
+                  {error && <div style={mensajeError}>{error}</div>}
+
+                  <button
+                    onClick={publicarProducto}
+                    disabled={publicando}
+                    className="cumbo-btn"
+                    style={{ ...botonPrimario, opacity: publicando ? 0.7 : 1 }}
+                  >
+                    {publicando ? 'Publicando…' : 'Publicar producto'}
+                  </button>
+                  <p style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', textAlign: 'center', marginTop: 8 }}>
+                    Cumbo cobra {Math.round(COMISION_PCT * 100)}% de comisión por venta. Cuota de afiliación:{' '}
+                    {Math.round(CUOTA_AFILIACION_PCT * 100)}%.
+                  </p>
                 </div>
-              </Campo>
-              <Campo label="Descripción (opcional)">
-                <textarea
-                  style={{ ...inputStyle, minHeight: 60 }}
-                  value={form.descripcion}
-                  onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
-                  placeholder="Características del producto"
-                />
-                <button
-                  type="button"
-                  onClick={generarDescripcionIA}
-                  disabled={generandoDescripcion || !form.nombre.trim()}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    marginTop: 6,
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--accion)',
-                    fontSize: 12,
-                    fontWeight: 'bold',
-                    cursor: generandoDescripcion || !form.nombre.trim() ? 'default' : 'pointer',
-                    opacity: generandoDescripcion || !form.nombre.trim() ? 0.5 : 1,
-                    padding: 0,
-                  }}
-                >
-                  <Sparkles size={14} /> {generandoDescripcion ? 'Generando…' : 'Generar con IA'}
-                </button>
-                {!form.nombre.trim() && (
-                  <p style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', margin: '4px 0 0' }}>Escribe el nombre del producto primero.</p>
-                )}
-              </Campo>
-
-              {error && <div style={mensajeError}>{error}</div>}
-
-              <button
-                onClick={publicarProducto}
-                disabled={publicando}
-                className="cumbo-btn"
-                style={{ ...botonPrimario, opacity: publicando ? 0.7 : 1 }}
-              >
-                {publicando ? 'Publicando…' : 'Publicar producto'}
-              </button>
-              <p style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', textAlign: 'center', marginTop: 8 }}>
-                Cumbo cobra {Math.round(COMISION_PCT * 100)}% de comisión por venta. Cuota de afiliación:{' '}
-                {Math.round(CUOTA_AFILIACION_PCT * 100)}%.
-              </p>
-            </div>
+              </>
+            )}
 
             {/* Lista de productos */}
-            {alertasInventario.length > 0 && (
+            {perfil?.rol !== 'caficultor' && alertasInventario.length > 0 && (
               <div
                 style={{
                   background: '#fdf3e6',
@@ -388,111 +396,93 @@ export default function CRMVendedor() {
 
             {cargando ? (
               <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center' }}>Cargando…</p>
+            ) : perfil?.rol === 'caficultor' ? (
+              // El panel del caficultor es exclusivo para sus despachos a
+              // Cumbo — no gestiona ni ve el producto terminado del
+              // Marketplace, eso lo controla el equipo Cumbo.
+              <>
+                <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)', margin: '4px 0 10px' }}>
+                  Tus despachos a Cumbo
+                </div>
+                {comprasPergamino.length === 0 ? (
+                  <p style={{ fontSize: 12.5, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>
+                    Todavía no hay despachos registrados.
+                  </p>
+                ) : (
+                  comprasPergamino.map((c) => (
+                    <div key={c.id} style={tarjeta}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
+                        <div style={{ fontWeight: 'bold', fontSize: 13, color: 'var(--marron-tinta)' }}>
+                          {c.cantidad_bultos} bulto{c.cantidad_bultos !== 1 ? 's' : ''} ({c.peso_por_bulto_kg}kg c/u)
+                        </div>
+                        <span
+                          style={{
+                            fontSize: 10,
+                            fontWeight: 'bold',
+                            color: '#fff',
+                            background: c.estado_pago === 'pagado' ? 'var(--exito)' : 'var(--canela-oscuro)',
+                            borderRadius: 999,
+                            padding: '3px 9px',
+                          }}
+                        >
+                          {c.estado_pago === 'pagado' ? 'Pagado' : 'Pendiente de pago'}
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 12, color: 'var(--cafe-oscuro)' }}>
+                        {formatoCOP(c.precio_por_kilo)}/kg · Total: {formatoCOP(c.total_pagado)}
+                      </div>
+                      <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', marginTop: 4 }}>
+                        {new Date(c.fecha_compra).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </>
             ) : productos.length === 0 ? (
               <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>
                 Todavía no has publicado productos.
               </p>
             ) : (
-              productos.map((p) => {
-                const esCafeControladoPorCumbo = p.tipo === 'cafe_finca';
-                return (
-                  <div key={p.id} style={tarjeta}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <div>
-                        <div style={{ fontWeight: 'bold', fontSize: 13.5, color: 'var(--marron-tinta)' }}>{p.nombre}</div>
-                        <div style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)' }}>
-                          {p.subtipo} · {etiquetaCalidad(p.calidad)}
-                        </div>
-                        <div style={{ fontWeight: 'bold', marginTop: 4 }}>{formatoCOP(p.precio)}</div>
+              productos.map((p) => (
+                <div key={p.id} style={tarjeta}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                    <div>
+                      <div style={{ fontWeight: 'bold', fontSize: 13.5, color: 'var(--marron-tinta)' }}>{p.nombre}</div>
+                      <div style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)' }}>
+                        {p.subtipo} · {etiquetaCalidad(p.calidad)}
                       </div>
-                      {!esCafeControladoPorCumbo && (
-                        <button
-                          onClick={() => alternarActivo(p)}
-                          style={{
-                            background: 'none',
-                            border: 'none',
-                            color: p.activo ? 'var(--canela-oscuro)' : 'var(--exito)',
-                            fontSize: 12,
-                            fontWeight: 'bold',
-                            cursor: 'pointer',
-                          }}
-                        >
-                          {p.activo ? 'Desactivar' : 'Activar'}
-                        </button>
-                      )}
+                      <div style={{ fontWeight: 'bold', marginTop: 4 }}>{formatoCOP(p.precio)}</div>
                     </div>
-                    {!p.activo && !esCafeControladoPorCumbo && (
-                      <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', marginTop: 4 }}>
-                        Desactivado — no aparece en el Marketplace, pero se conserva en el historial de quien ya lo compró.
-                      </div>
-                    )}
-                    {esCafeControladoPorCumbo ? (
-                      <div
-                        style={{
-                          fontSize: 11.5,
-                          color: 'var(--cafe-oscuro)',
-                          marginTop: 10,
-                          background: 'var(--fondo-calido)',
-                          borderRadius: 10,
-                          padding: '8px 10px',
-                        }}
-                      >
-                        <strong>Stock actual: {p.stock} libras.</strong> El inventario del café terminado lo gestiona el equipo Cumbo — vos
-                        vendés tu cosecha en pergamino, y acá abajo ves el registro de esas ventas.
-                      </div>
-                    ) : (
-                      <label
-                        style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 12, color: 'var(--cafe-oscuro)' }}
-                      >
-                        Stock:
-                        <input
-                          type="number"
-                          defaultValue={p.stock}
-                          onBlur={(e) => actualizarStock(p.id, e.target.value)}
-                          style={{ ...inputStyle, width: 70, padding: '6px 8px' }}
-                        />
-                      </label>
-                    )}
-                  </div>
-                );
-              })
-            )}
-          </>
-        )}
-
-        {tab === 'productos' && perfil?.rol === 'caficultor' && (
-          <>
-            <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)', margin: '16px 0 10px' }}>
-              Tus ventas de café pergamino a Cumbo
-            </div>
-            {comprasPergamino.length === 0 ? (
-              <p style={{ fontSize: 12.5, color: 'var(--cafe-oscuro)' }}>Todavía no hay compras registradas.</p>
-            ) : (
-              comprasPergamino.map((c) => (
-                <div key={c.id} style={tarjeta}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <div style={{ fontWeight: 'bold', fontSize: 13, color: 'var(--marron-tinta)' }}>
-                      {c.cantidad_bultos} bulto{c.cantidad_bultos !== 1 ? 's' : ''} ({c.peso_por_bulto_kg}kg c/u)
-                    </div>
-                    <span
+                    <button
+                      onClick={() => alternarActivo(p)}
                       style={{
-                        fontSize: 10,
+                        background: 'none',
+                        border: 'none',
+                        color: p.activo ? 'var(--canela-oscuro)' : 'var(--exito)',
+                        fontSize: 12,
                         fontWeight: 'bold',
-                        color: '#fff',
-                        background: c.estado_pago === 'pagado' ? 'var(--exito)' : 'var(--canela-oscuro)',
-                        borderRadius: 999,
-                        padding: '3px 9px',
+                        cursor: 'pointer',
                       }}
                     >
-                      {c.estado_pago === 'pagado' ? 'Pagado' : 'Pendiente de pago'}
-                    </span>
+                      {p.activo ? 'Desactivar' : 'Activar'}
+                    </button>
                   </div>
-                  <div style={{ fontSize: 12, color: 'var(--cafe-oscuro)' }}>
-                    {formatoCOP(c.precio_por_kilo)}/kg · Total: {formatoCOP(c.total_pagado)}
-                  </div>
-                  <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', marginTop: 4 }}>
-                    {new Date(c.fecha_compra).toLocaleDateString('es-CO', { day: 'numeric', month: 'long', year: 'numeric' })}
-                  </div>
+                  {!p.activo && (
+                    <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', marginTop: 4 }}>
+                      Desactivado — no aparece en el Marketplace, pero se conserva en el historial de quien ya lo compró.
+                    </div>
+                  )}
+                  <label
+                    style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 10, fontSize: 12, color: 'var(--cafe-oscuro)' }}
+                  >
+                    Stock:
+                    <input
+                      type="number"
+                      defaultValue={p.stock}
+                      onBlur={(e) => actualizarStock(p.id, e.target.value)}
+                      style={{ ...inputStyle, width: 70, padding: '6px 8px' }}
+                    />
+                  </label>
                 </div>
               ))
             )}

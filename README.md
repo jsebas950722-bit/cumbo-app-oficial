@@ -786,6 +786,15 @@ negocio de verdad — corregido.
   Cumbo) y el historial real de sus ventas de pergamino, de solo
   lectura.
 
+**Corrección adicional:** Sebastián aclaró que el panel del
+caficultor es **exclusivo para sus despachos a Cumbo** — no debe ver
+ni gestionar nada del producto terminado, ni pestañas de "Ventas" que
+mezclen conceptos. Corregido: para el rol `caficultor`,
+`CRMVendedor.jsx` (reutilizado como "Mi Inventario y Ventas") ya no
+muestra el formulario de publicar producto, ni la lista de productos
+propia, ni la pestaña de Ventas — solo la lista de sus despachos
+(`compras_pergamino`), sin pestañas, sin nada más.
+
 ## Cumbo Estudio
 
 Generador de **embudos de conversión** completos con IA para
