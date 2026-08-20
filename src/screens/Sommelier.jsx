@@ -26,7 +26,7 @@ const REGION_PERFIL = {
     tags: ['Panela', 'Mora', 'Cítricos'],
     region: 'Huila',
     metodoRecomendado: 'V60',
-    tueste: 'claro',
+    moliendaRecomendada: 'media-fina',
   },
   tolima: {
     nombre: 'Achocolatado',
@@ -35,7 +35,7 @@ const REGION_PERFIL = {
     tags: ['Cacao', 'Caramelo', 'Nuez'],
     region: 'Tolima',
     metodoRecomendado: 'Prensa francesa',
-    tueste: 'oscuro',
+    moliendaRecomendada: 'gruesa',
   },
   narino: {
     nombre: 'Suave y Floral',
@@ -44,7 +44,7 @@ const REGION_PERFIL = {
     tags: ['Jazmín', 'Té negro', 'Acidez suave'],
     region: 'Nariño',
     metodoRecomendado: 'V60',
-    tueste: 'claro',
+    moliendaRecomendada: 'media-gruesa',
   },
   cauca: {
     nombre: 'Caramelizado',
@@ -53,7 +53,7 @@ const REGION_PERFIL = {
     tags: ['Caramelo', 'Almendra', 'Balance'],
     region: 'Cauca',
     metodoRecomendado: 'Chemex',
-    tueste: 'medio',
+    moliendaRecomendada: 'media-fina',
   },
   santander: {
     nombre: 'Tostado e Intenso',
@@ -62,7 +62,7 @@ const REGION_PERFIL = {
     tags: ['Canela', 'Clavo', 'Cuerpo firme'],
     region: 'Santander',
     metodoRecomendado: 'Moka',
-    tueste: 'oscuro',
+    moliendaRecomendada: 'fina',
   },
   eje: {
     nombre: 'Balanceado',
@@ -71,14 +71,16 @@ const REGION_PERFIL = {
     tags: ['Equilibrio', 'Dulzura', 'Cuerpo medio'],
     region: 'Eje Cafetero',
     metodoRecomendado: 'Cafetera',
-    tueste: 'medio',
+    moliendaRecomendada: 'media',
   },
 };
 
-const TUESTE_INFO = {
-  claro: { nombre: 'Claro', descripcion: 'resalta acidez y notas frutales/florales, cuerpo más ligero' },
-  medio: { nombre: 'Medio', descripcion: 'balance entre acidez y cuerpo, el más versátil' },
-  oscuro: { nombre: 'Oscuro', descripcion: 'más cuerpo y notas tostadas/achocolatadas, menos acidez' },
+const MOLIENDA_INFO = {
+  fina: { nombre: 'Fina', descripcion: 'para moka o cafetera italiana' },
+  'media-fina': { nombre: 'Media-fina', descripcion: 'para V60 o AeroPress' },
+  media: { nombre: 'Media', descripcion: 'para cafetera de goteo tradicional' },
+  'media-gruesa': { nombre: 'Media-gruesa', descripcion: 'para Chemex' },
+  gruesa: { nombre: 'Gruesa', descripcion: 'para prensa francesa' },
 };
 
 const PREGUNTAS = [
@@ -116,11 +118,13 @@ const PREGUNTAS = [
     ],
   },
   {
-    texto: '¿Qué tueste preferís?',
+    texto: '¿Qué molienda usás (o vas a usar)?',
     opciones: [
-      { texto: 'Claro — más ácido, resalta lo frutal y floral', scores: { huila: 1, narino: 1 } },
-      { texto: 'Medio — balance entre acidez y cuerpo', scores: { cauca: 1, eje: 1 } },
-      { texto: 'Oscuro — más cuerpo, notas tostadas, menos acidez', scores: { tolima: 1, santander: 1 } },
+      { texto: 'Fina — para moka o cafetera italiana', scores: { santander: 2 } },
+      { texto: 'Media-fina — para V60 o AeroPress', scores: { huila: 1, cauca: 1 } },
+      { texto: 'Media — para cafetera de goteo tradicional', scores: { eje: 2 } },
+      { texto: 'Media-gruesa — para Chemex', scores: { narino: 2 } },
+      { texto: 'Gruesa — para prensa francesa', scores: { tolima: 2 } },
     ],
   },
 ];
@@ -774,8 +778,8 @@ export default function Sommelier() {
                   ))}
                 </div>
                 <div style={{ fontSize: 12.5, color: 'var(--marron-tinta)', marginBottom: 14 }}>
-                  Método recomendado: <strong>{perfilResultado.metodoRecomendado}</strong> · Tueste ideal:{' '}
-                  <strong>{TUESTE_INFO[perfilResultado.tueste]?.nombre}</strong>
+                  Método recomendado: <strong>{perfilResultado.metodoRecomendado}</strong> · Molienda ideal:{' '}
+                  <strong>{MOLIENDA_INFO[perfilResultado.moliendaRecomendada]?.nombre}</strong>
                 </div>
 
                 <div style={{ fontSize: 12.5, fontWeight: 'bold', color: 'var(--cafe-oscuro)', marginBottom: 8 }}>
