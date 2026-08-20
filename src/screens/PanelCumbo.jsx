@@ -17,6 +17,10 @@ import {
   Sparkles,
   Calendar,
   Radio,
+  Sprout,
+  MessageCircle,
+  Package,
+  Wallet,
 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
 import { useSesion } from '../context/SesionContext';
@@ -63,7 +67,7 @@ const ETIQUETA_ESTADO = {
 export default function PanelCumbo() {
   const { sesion, perfil, cargando: cargandoSesion } = useSesion();
   const [searchParams] = useSearchParams();
-  const [tab, setTab] = useState(searchParams.get('tab') || 'fichas'); // 'fichas' | 'pedidos' | 'resumen' | ...
+  const [tab, setTab] = useState(searchParams.get('tab') || 'operacion'); // 'operacion' | 'fichas' | 'pedidos' | 'resumen' | ...
 
   if (cargandoSesion) return null;
   if (!sesion) return <Navigate to="/ingreso" replace />;
@@ -94,6 +98,7 @@ export default function PanelCumbo() {
 
       <div style={{ display: 'flex', gap: 8, padding: '14px 16px 6px', maxWidth: 480, margin: '0 auto' }}>
         {[
+          { id: 'operacion', label: 'Operación' },
           { id: 'fichas', label: 'Fincas pendientes' },
           { id: 'pedidos', label: 'Pedidos' },
           { id: 'resumen', label: 'Resumen' },
@@ -127,6 +132,7 @@ export default function PanelCumbo() {
       </div>
 
       <div style={{ maxWidth: 480, margin: '0 auto', padding: '10px 16px' }}>
+        {tab === 'operacion' && <TabOperacion irA={setTab} />}
         {tab === 'fichas' && <TabFichas />}
         {tab === 'pedidos' && <TabPedidos />}
         {tab === 'resumen' && <TabResumen />}
@@ -2066,6 +2072,148 @@ function TabPergamino({ fincaPreseleccionada }) {
           </div>
         ))
       )}
+    </div>
+  );
+}
+
+// ================= CENTRO DE OPERACIÓN (tablero unificado) =================
+// Un solo lugar para ver, de un vistazo y en vivo, qué necesita
+// atención en cada área operativa — sin tener que ir pestaña por
+// pestaña a buscarlo. Cada tarjeta es real (cuenta filas reales de
+// cada tabla, no un número decorativo) y lleva directo a la pestaña
+// correspondiente al tocarla.
+
+function TabOperacion({ irA }) {
+  const [conteos, setConteos] = useState(null);
+  const [cargando, setCargando] = useState(true);
+  const [enVivo, setEnVivo] = useState(false);
+
+  useEffect(() => {
+    cargar();
+
+    const canal = supabase
+      .channel('centro-operacion')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'fincas' }, () => actualizar())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'pedidos' }, () => actualizar())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'compras_pergamino' }, () => actualizar())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'alertas_inventario' }, () => actualizar())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'discrepancias_pago' }, () => actualizar())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'whatsapp_conversaciones' }, () => actualizar())
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(canal);
+    };
+  }, []);
+
+  function actualizar() {
+    cargar();
+    setEnVivo(true);
+    setTimeout(() => setEnVivo(false), 2000);
+  }
+
+  async function cargar() {
+    const [
+      { count: fincasPendientes },
+      { count: pedidosPorAtender },
+      { count: pergaminoSinVerificar },
+      { count: pergaminoSinPagar },
+      { count: alertasInventario },
+      { count: pagosUrgentes },
+      { count: whatsappPendiente },
+    ] = await Promise.all([
+      supabase.from('fincas').select('*', { count: 'exact', head: true }).eq('estado', 'pendiente'),
+      supabase.from('pedidos').select('*', { count: 'exact', head: true }).in('estado', ['pendiente', 'en_revision', 'confirmado']),
+      supabase.from('compras_pergamino').select('*', { count: 'exact', head: true }).eq('verificado', false),
+      supabase.from('compras_pergamino').select('*', { count: 'exact', head: true }).eq('estado_pago', 'pendiente'),
+      supabase.from('alertas_inventario').select('*', { count: 'exact', head: true }).eq('resuelta', false),
+      supabase.from('discrepancias_pago').select('*', { count: 'exact', head: true }).eq('severidad', 'urgente').eq('resuelto', false),
+      supabase.from('whatsapp_conversaciones').select('*', { count: 'exact', head: true }).eq('requiere_humano', true),
+    ]);
+
+    setConteos({
+      fincasPendientes: fincasPendientes || 0,
+      pedidosPorAtender: pedidosPorAtender || 0,
+      pergaminoSinVerificar: pergaminoSinVerificar || 0,
+      pergaminoSinPagar: pergaminoSinPagar || 0,
+      alertasInventario: alertasInventario || 0,
+      pagosUrgentes: pagosUrgentes || 0,
+      whatsappPendiente: whatsappPendiente || 0,
+    });
+    setCargando(false);
+  }
+
+  if (cargando || !conteos) return <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>;
+
+  const tarjetas = [
+    { id: 'fichas', label: 'Fincas por validar', valor: conteos.fincasPendientes, Icono: Sprout, color: 'var(--accion)' },
+    { id: 'pedidos', label: 'Pedidos por atender', valor: conteos.pedidosPorAtender, Icono: Package, color: 'var(--accion)' },
+    { id: 'pergamino', label: 'Pergamino sin verificar', valor: conteos.pergaminoSinVerificar, Icono: Sprout, color: '#b8860b' },
+    { id: 'pergamino', label: 'Pergamino sin pagar', valor: conteos.pergaminoSinPagar, Icono: Wallet, color: 'var(--canela-oscuro)' },
+    {
+      id: 'inventario',
+      label: 'Alertas de inventario',
+      valor: conteos.alertasInventario,
+      Icono: AlertTriangle,
+      color: 'var(--canela-oscuro)',
+    },
+    { id: 'conciliacion', label: 'Pagos urgentes', valor: conteos.pagosUrgentes, Icono: DollarSign, color: 'var(--canela-oscuro)' },
+    {
+      id: 'whatsapp',
+      label: 'WhatsApp esperando respuesta',
+      valor: conteos.whatsappPendiente,
+      Icono: MessageCircle,
+      color: 'var(--canela-oscuro)',
+    },
+  ];
+
+  const totalPendiente = tarjetas.reduce((acc, t) => acc + t.valor, 0);
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+        <div style={{ fontSize: 13, color: 'var(--cafe-oscuro)' }}>
+          {totalPendiente === 0 ? 'Todo al día — nada pendiente ahora mismo.' : `${totalPendiente} cosas pendientes en total.`}
+        </div>
+        <span
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            fontSize: 10,
+            fontWeight: 'bold',
+            color: enVivo ? 'var(--exito)' : '#b0a596',
+          }}
+        >
+          <Radio size={11} /> {enVivo ? 'Actualizado' : 'En vivo'}
+        </span>
+      </div>
+
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+        {tarjetas.map((t, i) => (
+          <button
+            key={i}
+            onClick={() => irA(t.id)}
+            style={{
+              textAlign: 'left',
+              background: 'var(--superficie)',
+              border: 'none',
+              borderRadius: 16,
+              padding: 14,
+              cursor: 'pointer',
+              borderLeft: t.valor > 0 ? `3px solid ${t.color}` : '3px solid transparent',
+            }}
+          >
+            <t.Icono size={17} color={t.valor > 0 ? t.color : 'var(--cafe-oscuro)'} />
+            <div style={{ fontSize: 22, fontWeight: 'bold', color: 'var(--marron-tinta)', marginTop: 8 }}>{t.valor}</div>
+            <div style={{ fontSize: 11, color: 'var(--cafe-oscuro)' }}>{t.label}</div>
+          </button>
+        ))}
+      </div>
+
+      <p style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', textAlign: 'center', marginTop: 16 }}>
+        Cada número es real y en vivo — tocá cualquier tarjeta para ir directo a esa sección.
+      </p>
     </div>
   );
 }

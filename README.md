@@ -540,6 +540,24 @@ necesitaba leer ese log de verdad. Corregido en
 eventos (o los de su propia finca), y el equipo Cumbo/logística sigue
 viendo todo como antes.
 
+## Centro de Operación (tablero unificado)
+
+Panel Cumbo tenía 11 pestañas — mucho para navegar una por una buscando
+qué necesita atención. **Panel Cumbo → Operación** (ahora la pestaña
+por defecto al entrar) junta lo más urgente de cada área en un solo
+tablero, con datos reales y en vivo (Supabase Realtime):
+
+- Fincas por validar
+- Pedidos por atender
+- Pergamino sin verificar / sin pagar
+- Alertas de inventario activas
+- Discrepancias de pago urgentes
+- Conversaciones de WhatsApp esperando respuesta
+
+Cada tarjeta es un conteo real (no decorativo) y lleva directo a la
+pestaña correspondiente al tocarla — es un punto de entrada, no un
+reemplazo de las pestañas específicas.
+
 ## Agente de monitoreo de inventario
 
 Cuarto y último de los agentes priorizados. A diferencia de los otros
