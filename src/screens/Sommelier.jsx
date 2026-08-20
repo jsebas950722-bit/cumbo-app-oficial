@@ -26,6 +26,7 @@ const REGION_PERFIL = {
     tags: ['Panela', 'Mora', 'Cítricos'],
     region: 'Huila',
     metodoRecomendado: 'V60',
+    tueste: 'claro',
   },
   tolima: {
     nombre: 'Achocolatado',
@@ -34,6 +35,7 @@ const REGION_PERFIL = {
     tags: ['Cacao', 'Caramelo', 'Nuez'],
     region: 'Tolima',
     metodoRecomendado: 'Prensa francesa',
+    tueste: 'oscuro',
   },
   narino: {
     nombre: 'Suave y Floral',
@@ -42,6 +44,7 @@ const REGION_PERFIL = {
     tags: ['Jazmín', 'Té negro', 'Acidez suave'],
     region: 'Nariño',
     metodoRecomendado: 'V60',
+    tueste: 'claro',
   },
   cauca: {
     nombre: 'Caramelizado',
@@ -50,6 +53,7 @@ const REGION_PERFIL = {
     tags: ['Caramelo', 'Almendra', 'Balance'],
     region: 'Cauca',
     metodoRecomendado: 'Chemex',
+    tueste: 'medio',
   },
   santander: {
     nombre: 'Tostado e Intenso',
@@ -58,6 +62,7 @@ const REGION_PERFIL = {
     tags: ['Canela', 'Clavo', 'Cuerpo firme'],
     region: 'Santander',
     metodoRecomendado: 'Moka',
+    tueste: 'oscuro',
   },
   eje: {
     nombre: 'Balanceado',
@@ -66,94 +71,56 @@ const REGION_PERFIL = {
     tags: ['Equilibrio', 'Dulzura', 'Cuerpo medio'],
     region: 'Eje Cafetero',
     metodoRecomendado: 'Cafetera',
+    tueste: 'medio',
   },
-  antioquia: {
-    nombre: 'Suave y Limpio',
-    descripcion:
-      'Notas a panela y frutos secos, acidez media. Proceso lavado tradicional, con tradición cafetera centenaria y enfoque reciente en innovación de finca.',
-    tags: ['Panela', 'Frutos secos', 'Acidez media'],
-    region: 'Antioquia',
-    metodoRecomendado: 'Cafetera',
-  },
-  valle: {
-    nombre: 'Cítrico y Brillante',
-    descripcion:
-      'Acidez cítrica marcada, cuerpo ligero. Cafés de ladera andina con proceso lavado, que preserva notas vibrantes y taza limpia.',
-    tags: ['Cítrico', 'Ligero', 'Vibrante'],
-    region: 'Valle del Cauca',
-    metodoRecomendado: 'V60',
-  },
-  cundinamarca: {
-    nombre: 'Herbal y Suave',
-    descripcion:
-      'Notas herbales y de nuez, cuerpo ligero a medio. Cultivos de montaña cerca de la capital, con proceso lavado y tueste claro-medio.',
-    tags: ['Herbal', 'Nuez', 'Ligero'],
-    region: 'Cundinamarca',
-    metodoRecomendado: 'Chemex',
-  },
-  boyaca: {
-    nombre: 'Dulce y Almendrado',
-    descripcion: 'Notas de almendra y panela, acidez suave. Cafés de altura con producción artesanal en pequeñas fincas, proceso lavado.',
-    tags: ['Almendra', 'Panela', 'Artesanal'],
-    region: 'Boyacá',
-    metodoRecomendado: 'Chemex',
-  },
-  sierra: {
-    nombre: 'Amaderado',
-    descripcion:
-      'Cuerpo alto, notas amaderadas y menor acidez. Cultivos cerca de la Sierra Nevada de Santa Marta, con tueste medio-oscuro que acentúa cuerpo sobre acidez.',
-    tags: ['Amaderado', 'Cuerpo alto', 'Baja acidez'],
-    region: 'Santanderes del norte y Sierra Nevada',
-    metodoRecomendado: 'Prensa francesa',
-  },
+};
+
+const TUESTE_INFO = {
+  claro: { nombre: 'Claro', descripcion: 'resalta acidez y notas frutales/florales, cuerpo más ligero' },
+  medio: { nombre: 'Medio', descripcion: 'balance entre acidez y cuerpo, el más versátil' },
+  oscuro: { nombre: 'Oscuro', descripcion: 'más cuerpo y notas tostadas/achocolatadas, menos acidez' },
 };
 
 const PREGUNTAS = [
   {
-    texto: '¿Cómo te gusta empezar la mañana?',
+    texto: '¿Qué método de preparación preferís (o te gustaría probar)?',
     opciones: [
-      { texto: 'Con algo dulce y ligero, como fruta fresca', scores: { huila: 2 } },
-      { texto: 'Con algo reconfortante, como chocolate caliente', scores: { tolima: 2 } },
-      { texto: 'Con calma, oliendo cada sorbo despacio', scores: { narino: 2 } },
-      { texto: 'Con algo dulce y tostado, como caramelo', scores: { cauca: 2 } },
-      { texto: 'Con algo fuerte que me despierte ya', scores: { santander: 2 } },
-    ],
-  },
-  {
-    texto: '¿Qué tipo de sabores prefieres en general?',
-    opciones: [
-      { texto: 'Sabores equilibrados, ni muy fuertes ni muy suaves', scores: { eje: 2 } },
-      { texto: 'Sabores limpios y suaves, sin mucha acidez', scores: { antioquia: 2 } },
-      { texto: 'Sabores cítricos y brillantes', scores: { valle: 2 } },
-      { texto: 'Sabores herbales, como té o hierbas frescas', scores: { cundinamarca: 2 } },
-      { texto: 'Sabores dulces, como almendra o panela', scores: { boyaca: 2 } },
+      { texto: 'V60 — resalta acidez y notas frutales', scores: { huila: 2 } },
+      { texto: 'Chemex — taza limpia, delicada y floral', scores: { narino: 2 } },
+      { texto: 'Prensa francesa — cuerpo denso, con más textura', scores: { tolima: 2 } },
+      { texto: 'Moka o cafetera italiana — intenso y directo', scores: { santander: 2 } },
+      { texto: 'Cafetera de goteo tradicional — el de todos los días', scores: { eje: 2 } },
+      { texto: 'AeroPress — versátil, dulce y suave', scores: { cauca: 2 } },
     ],
   },
   {
     texto: '¿Qué tan fuerte te gusta el café?',
     opciones: [
-      { texto: 'Fuerte, con cuerpo alto y poca acidez', scores: { sierra: 2 } },
+      { texto: 'Fuerte, con cuerpo alto y poca acidez', scores: { santander: 2 } },
       { texto: 'Suave y jugoso, con acidez brillante', scores: { huila: 2 } },
       { texto: 'Con cuerpo denso y cálido', scores: { tolima: 2 } },
       { texto: 'Delicado, con acidez suave', scores: { narino: 2 } },
+      { texto: 'Balanceado, ni muy fuerte ni muy suave', scores: { eje: 2 } },
+      { texto: 'Dulce, con cuerpo medio', scores: { cauca: 2 } },
     ],
   },
   {
-    texto: 'Tu postre favorito es...',
+    texto: '¿Qué notas buscás en la taza?',
     opciones: [
-      { texto: 'Algo con caramelo o dulce de leche', scores: { cauca: 2 } },
-      { texto: 'Algo con especias, como pan de canela', scores: { santander: 2 } },
-      { texto: 'Algo balanceado, ni muy dulce ni muy amargo', scores: { eje: 2 } },
-      { texto: 'Algo sencillo, como panela o bocadillo', scores: { antioquia: 2 } },
+      { texto: 'Frutal y dulce — mora, cítricos', scores: { huila: 2 } },
+      { texto: 'Achocolatado — cacao y nuez', scores: { tolima: 2 } },
+      { texto: 'Floral — jazmín y té negro', scores: { narino: 2 } },
+      { texto: 'Caramelo y almendra tostada', scores: { cauca: 2 } },
+      { texto: 'Especiado — canela y clavo', scores: { santander: 2 } },
+      { texto: 'Equilibrado, sin una nota que domine', scores: { eje: 2 } },
     ],
   },
   {
-    texto: 'Un domingo perfecto es...',
+    texto: '¿Qué tueste preferís?',
     opciones: [
-      { texto: 'Salir a un lugar fresco y luminoso', scores: { valle: 2 } },
-      { texto: 'Quedarme leyendo con algo suave', scores: { cundinamarca: 2 } },
-      { texto: 'Una tarde tranquila en el campo', scores: { boyaca: 2 } },
-      { texto: 'Una caminata larga e intensa', scores: { sierra: 2 } },
+      { texto: 'Claro — más ácido, resalta lo frutal y floral', scores: { huila: 1, narino: 1 } },
+      { texto: 'Medio — balance entre acidez y cuerpo', scores: { cauca: 1, eje: 1 } },
+      { texto: 'Oscuro — más cuerpo, notas tostadas, menos acidez', scores: { tolima: 1, santander: 1 } },
     ],
   },
 ];
@@ -318,11 +285,6 @@ const SCORES_INICIALES = {
   cauca: 0,
   santander: 0,
   eje: 0,
-  antioquia: 0,
-  valle: 0,
-  cundinamarca: 0,
-  boyaca: 0,
-  sierra: 0,
 };
 
 function calcularPerfil(scores) {
@@ -812,7 +774,8 @@ export default function Sommelier() {
                   ))}
                 </div>
                 <div style={{ fontSize: 12.5, color: 'var(--marron-tinta)', marginBottom: 14 }}>
-                  Método recomendado: <strong>{perfilResultado.metodoRecomendado}</strong>
+                  Método recomendado: <strong>{perfilResultado.metodoRecomendado}</strong> · Tueste ideal:{' '}
+                  <strong>{TUESTE_INFO[perfilResultado.tueste]?.nombre}</strong>
                 </div>
 
                 <div style={{ fontSize: 12.5, fontWeight: 'bold', color: 'var(--cafe-oscuro)', marginBottom: 8 }}>

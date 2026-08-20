@@ -777,6 +777,34 @@ falta:
    recomendado) — confirmación de pedidos, notificaciones de validación
    de finca, etc.
 
+## Sommelier rediseñado: método, fuerza, notas y tueste
+
+A pedido, las preguntas del quiz se recentraron en 4 ejes concretos
+del café (antes eran metáforas de estilo de vida — "¿cómo empezás la
+mañana?"): **método de preparación, qué tan fuerte, notas al paladar,
+tueste**.
+
+**Bug real encontrado y corregido al hacer este cambio:** el quiz
+puntuaba contra 11 "regiones", pero `region_finca` (el enum real de la
+base de datos) solo permite 6 (`Huila, Nariño, Cauca, Eje Cafetero,
+Tolima, Santander, Otra`). Los 5 perfiles restantes (Antioquia, Valle
+del Cauca, Cundinamarca, Boyacá, "Santanderes del norte y Sierra
+Nevada") **nunca podían encontrar café real** — la búsqueda de
+productos quedaba vacía siempre, en el 45% de los resultados posibles
+del quiz, desde el primer día. Corregido: el quiz ahora solo puntúa
+contra las 6 regiones que de verdad pueden existir en una finca.
+
+- **`tueste`** (`tueste_cafe`: `claro` | `medio` | `oscuro`) — columna
+  nueva en `productos`. Es una decisión de procesamiento de Cumbo, no
+  del caficultor (coherente con el modelo de café pergamino: el
+  caficultor vende sin tostar, Cumbo controla el producto terminado).
+- El resultado del quiz ahora muestra también el tueste ideal para
+  ese perfil, junto al método recomendado.
+- La sección educativa "Explorar regiones" (información general sobre
+  las zonas cafeteras de Colombia) se dejó igual — es contenido
+  puramente informativo, no dispara ninguna búsqueda de productos, así
+  que no tenía el mismo bug.
+
 ## Café pergamino: el modelo de negocio real
 
 **Corrección importante sobre lo que se construyó antes:** el modelo
