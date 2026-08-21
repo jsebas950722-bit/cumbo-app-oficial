@@ -2361,6 +2361,49 @@ function TabContabilidad() {
   const [cargando, setCargando] = useState(true);
   const [respuestasAuto, setRespuestasAuto] = useState(Array(10).fill(false));
   const [ultimaAuto, setUltimaAuto] = useState(null);
+  const [serieMensual, setSerieMensual] = useState([]);
+  const [cargandoSerie, setCargandoSerie] = useState(true);
+
+  useEffect(() => {
+    cargarSerieHistorica();
+  }, []);
+
+  async function cargarSerieHistorica() {
+    setCargandoSerie(true);
+    const meses = [];
+    const hoy = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      meses.push(d.toISOString().slice(0, 7));
+    }
+
+    const datos = await Promise.all(
+      meses.map(async (mes) => {
+        const inicio = `${mes}-01`;
+        const finDate = new Date(inicio);
+        finDate.setMonth(finDate.getMonth() + 1);
+        const fin = finDate.toISOString().slice(0, 10);
+
+        const [{ data: pedidosMes }, { data: comprasMes }, { data: finanzasMes }] = await Promise.all([
+          supabase.from('pedidos').select('total').eq('pago_confirmado', true).gte('fecha', inicio).lt('fecha', fin),
+          supabase.from('compras_pergamino').select('total_pagado').gte('fecha_compra', inicio).lt('fecha_compra', fin),
+          supabase.from('finanzas_periodo').select('gastos_operativos, otros_ingresos, otros_egresos').eq('periodo', mes).maybeSingle(),
+        ]);
+
+        const ing = (pedidosMes || []).reduce((acc, p) => acc + Number(p.total), 0);
+        const costo = (comprasMes || []).reduce((acc, c) => acc + Number(c.total_pagado), 0);
+        const gastos = Number(finanzasMes?.gastos_operativos || 0);
+        const otrosIng = Number(finanzasMes?.otros_ingresos || 0);
+        const otrosEg = Number(finanzasMes?.otros_egresos || 0);
+        const neta = ing - costo - gastos + otrosIng - otrosEg;
+
+        return { mes, ingresos: ing, utilidadNeta: neta };
+      })
+    );
+
+    setSerieMensual(datos);
+    setCargandoSerie(false);
+  }
 
   useEffect(() => {
     cargar();
@@ -2408,6 +2451,7 @@ function TabContabilidad() {
       { onConflict: 'periodo' }
     );
     setGuardando(false);
+    cargarSerieHistorica();
   }
 
   async function enviarAutoevaluacion() {
@@ -2421,6 +2465,10 @@ function TabContabilidad() {
   const utilidadBruta = ingresos - costoPergamino;
   const utilidadOperativa = utilidadBruta - (parseFloat(gastosOperativos) || 0);
   const utilidadNeta = utilidadOperativa + (parseFloat(otrosIngresos) || 0) - (parseFloat(otrosEgresos) || 0);
+  const margenBruto = ingresos > 0 ? Math.round((utilidadBruta / ingresos) * 100) : null;
+  const margenNeto = ingresos > 0 ? Math.round((utilidadNeta / ingresos) * 100) : null;
+  const maxSerie = Math.max(1, ...serieMensual.map((s) => Math.abs(s.utilidadNeta)));
+  const NOMBRES_MES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
   const fila = (etiqueta, valor, bold, positivo) => (
     <div
@@ -2444,6 +2492,63 @@ function TabContabilidad() {
         Ingresos y costo de pergamino se calculan solos con datos reales — nunca inventados. Gastos operativos y otros ingresos/egresos los
         cargás vos, porque la app no rastrea arriendo, servicios ni personal.
       </p>
+
+      {/* Tablero: margen e indicadores del período elegido + tendencia de los últimos 6 meses */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 14 }}>
+        <div style={{ background: 'var(--superficie)', borderRadius: 16, padding: 14 }}>
+          <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)' }}>Margen bruto</div>
+          <div style={{ fontSize: 22, fontWeight: 'bold', color: 'var(--marron-tinta)' }}>
+            {margenBruto !== null ? `${margenBruto}%` : '—'}
+          </div>
+        </div>
+        <div style={{ background: 'var(--superficie)', borderRadius: 16, padding: 14 }}>
+          <div style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)' }}>Margen neto</div>
+          <div
+            style={{
+              fontSize: 22,
+              fontWeight: 'bold',
+              color: margenNeto !== null && margenNeto < 0 ? 'var(--canela-oscuro)' : 'var(--marron-tinta)',
+            }}
+          >
+            {margenNeto !== null ? `${margenNeto}%` : '—'}
+          </div>
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--superficie)', borderRadius: 16, padding: 16, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)', marginBottom: 10 }}>
+          Utilidad neta — últimos 6 meses
+        </div>
+        {cargandoSerie ? (
+          <p style={{ fontSize: 12, color: 'var(--cafe-oscuro)' }}>Cargando…</p>
+        ) : (
+          <div style={{ display: 'flex', alignItems: 'flex-end', gap: 8, height: 90 }}>
+            {serieMensual.map((s) => {
+              const [, mesNum] = s.mes.split('-');
+              const negativo = s.utilidadNeta < 0;
+              return (
+                <div key={s.mes} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+                  <div
+                    title={formatoCOP(s.utilidadNeta)}
+                    style={{
+                      width: '100%',
+                      maxWidth: 28,
+                      height: `${Math.max(4, (Math.abs(s.utilidadNeta) / maxSerie) * 70)}px`,
+                      background: negativo ? 'var(--canela-oscuro)' : 'var(--accion)',
+                      borderRadius: 4,
+                    }}
+                  />
+                  <span style={{ fontSize: 9.5, color: 'var(--cafe-oscuro)' }}>{NOMBRES_MES[parseInt(mesNum, 10) - 1]}</span>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <p style={{ fontSize: 10, color: 'var(--cafe-oscuro)', marginTop: 8 }}>
+          En rojo, meses con pérdida. Meses sin gastos operativos cargados solo muestran la utilidad bruta como neta — cargalos abajo para
+          que la tendencia sea exacta.
+        </p>
+      </div>
 
       <input
         type="month"

@@ -803,6 +803,15 @@ reales — y se dejó explícito lo que no puede.
 - **Autoevaluación contable** — las mismas 10 preguntas del curso,
   guardadas con fecha y puntaje para poder repetirla y ver si mejora.
 
+**Elevado a tablero real** (a pedido, para el uso diario del CEO):
+- **Margen bruto y margen neto** del período elegido, como
+  indicadores al frente.
+- **Gráfico de utilidad neta de los últimos 6 meses** — mismo patrón
+  visual que ya usan Resumen y Operación. Los meses en rojo son
+  meses con pérdida. Si un mes no tiene gastos operativos cargados
+  todavía, el gráfico usa la utilidad bruta como aproximación —
+  cargar el período correspondiente hace que la tendencia sea exacta.
+
 **Lo que esto NO hace (siendo honesto sobre el alcance):** no arma un
 Balance General completo — eso necesitaría datos que la app
 simplemente no tiene manera de conocer (efectivo real en banco,
