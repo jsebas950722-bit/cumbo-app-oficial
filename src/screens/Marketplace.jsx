@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { ArrowLeft, ShoppingCart, Search, Star, Coffee, X, MapPin, CreditCard } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { registrarEvento } from '../lib/analytics';
 import { useSesion } from '../context/SesionContext';
 import { useCarrito } from '../context/CarritoContext';
 import { CIUDAD_BASE, TAMANOS, DEPARTAMENTOS_COLOMBIA, TARIFAS_URBANAS, esCiudadBase, precioConTamano, formatoCOP } from '../lib/tarifas';
@@ -175,6 +176,7 @@ export default function Marketplace() {
       precio,
       cantidad,
     });
+    registrarEvento('producto_agregado_carrito', { producto_id: producto.id, tipo: 'cafe_finca', tamano, cantidad });
   }
 
   function agregarProductoSimple(producto) {
@@ -186,6 +188,7 @@ export default function Marketplace() {
       precio: producto.precio,
       cantidad,
     });
+    registrarEvento('producto_agregado_carrito', { producto_id: producto.id, tipo: producto.tipo, cantidad });
   }
 
   // Búsqueda real: filtra por nombre — llega prellenada si el cliente
@@ -292,6 +295,7 @@ export default function Marketplace() {
       // (ver supabase/functions/webhook-mercadopago y webhook-wompi) —
       // esta pantalla ya no finge que el pedido quedó pagado, solo lo
       // crea y te lleva a pagarlo de verdad.
+      registrarEvento('checkout_iniciado', { pedido_id: pedido.id, total: carrito.total, pasarela: pasarelaPago });
       const nombreFuncion = pasarelaPago === 'wompi' ? 'crear-pago-wompi' : 'crear-preferencia-pago';
       const { data: pago, error: errPago } = await supabase.functions.invoke(nombreFuncion, {
         body: { pedido_id: pedido.id },
@@ -302,6 +306,7 @@ export default function Marketplace() {
       window.location.href = pago.init_point;
     } catch (e) {
       setError('No se pudo iniciar el pago. Intenta de nuevo en un momento.');
+      registrarEvento('pago_fallido', { etapa: 'checkout', mensaje: e?.message });
     } finally {
       setEnviandoPedido(false);
     }

@@ -26,6 +26,7 @@ export default [
         setTimeout: 'readonly',
         clearTimeout: 'readonly',
         URL: 'readonly',
+        crypto: 'readonly',
       },
     },
     settings: { react: { version: 'detect' } },

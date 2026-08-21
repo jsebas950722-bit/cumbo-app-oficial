@@ -777,6 +777,45 @@ falta:
    recomendado) — confirmación de pedidos, notificaciones de validación
    de finca, etc.
 
+## Analytics: el embudo real de uso (punto 3 del plan de marketing)
+
+Cierra el plan acordado con Sebastián: perfil de cliente → propuesta
+de valor → **eventos de analytics definidos e instrumentados de
+verdad en el código**, no solo documentados en papel.
+
+- **`eventos_analytics`** — tabla nueva, separada de `eventos_log`
+  (que es auditoría de negocio: cambios de estado de pedidos, etc.).
+  Esta es específicamente para medir el embudo de uso: cuánta gente
+  llega a cada paso, dónde se cae.
+- **`src/lib/analytics.js`** — helper único (`registrarEvento`) usado
+  en toda la app. Reglas de diseño explícitas: nunca bloquea la UI
+  (fire-and-forget), nunca rompe la experiencia si falla (el error se
+  traga a propósito — medir no puede ser más importante que comprar
+  café de verdad), funciona con o sin sesión (id de sesión anónima en
+  `localStorage` para quien todavía no se registró).
+
+**Eventos instrumentados, con dónde vive cada uno:**
+
+| Evento | Dónde se dispara |
+|---|---|
+| `cuenta_creada` / `sesion_iniciada` | `Ingreso.jsx` |
+| `uso_sommelier` | `Sommelier.jsx` — tanto en el quiz como en el chat con Cumbito |
+| `producto_agregado_carrito` | `Marketplace.jsx` |
+| `checkout_iniciado` / `pago_fallido` | `Marketplace.jsx` |
+| `compra_completada` | **Los webhooks** de Mercado Pago y Wompi — no el frontend, porque ahí es donde de verdad se confirma el pago, no en la pantalla de "éxito" que el cliente ve al volver |
+
+- **Panel Cumbo → Analytics** (pestaña nueva) — tasa de conversión
+  (checkout → compra) y el embudo completo como barras, filtrable por
+  7/30/90 días. Números reales, no estimados.
+
+**Nota sobre verificación de esta ronda:** el entorno se quedó sin
+acceso a Deno (se perdió con un reinicio del contenedor). Se usó
+TypeScript vía `npx tsc` como verificación alternativa de sintaxis en
+los dos webhooks modificados, comparando contra el archivo original
+sin tocar — mismos "errores esperados" en ambos casos (imports que no
+resuelven fuera del entorno real de Deno), confirmando que los
+cambios no introdujeron ningún problema nuevo.
+
 ## Sommelier rediseñado: método, fuerza, notas y molienda
 
 A pedido, las preguntas del quiz se recentraron en 4 ejes concretos

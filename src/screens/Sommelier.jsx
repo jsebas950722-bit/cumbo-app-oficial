@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Sparkles, Mic, Volume2, VolumeX, CheckCircle2, Send, ShoppingBag } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { registrarEvento } from '../lib/analytics';
 import { useSesion } from '../context/SesionContext';
 
 // Migrado desde: "Sommelier Cumbo.dc.html"
@@ -353,6 +354,7 @@ export default function Sommelier() {
     if (siguientePaso >= PREGUNTAS.length) {
       const perfil = calcularPerfil(nuevoScores);
       setFase('resultado');
+      registrarEvento('uso_sommelier', { perfil: perfil.nombre, region: perfil.region, via: 'quiz' });
       if (vozActiva) hablar(`¡Ya te descubrí! Tu taza ideal es ${perfil.nombre}, un café de ${perfil.region}. ${perfil.descripcion}`);
     } else if (vozActiva) {
       hablar(PREGUNTAS[siguientePaso].texto);
@@ -388,6 +390,7 @@ export default function Sommelier() {
             .eq('id', data.producto_recomendado_id)
             .single();
           setProductoRecomendado(producto || null);
+          if (producto) registrarEvento('uso_sommelier', { perfil: producto.nombre, region: producto.fincas?.region, via: 'chat' });
         }
       }
     } finally {

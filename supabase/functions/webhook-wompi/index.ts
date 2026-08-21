@@ -18,7 +18,9 @@ import { corsHeaders } from '../_shared/cors.ts';
 async function sha256Hex(texto: string) {
   const datos = new TextEncoder().encode(texto);
   const hashBuffer = await crypto.subtle.digest('SHA-256', datos);
-  return Array.from(new Uint8Array(hashBuffer)).map((b) => b.toString(16).padStart(2, '0')).join('');
+  return Array.from(new Uint8Array(hashBuffer))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
 }
 
 Deno.serve(async (req) => {
@@ -53,7 +55,19 @@ Deno.serve(async (req) => {
         entidad: 'pedido',
         entidad_id: pedidoId,
         accion: 'pago_aprobado',
-        datos: { pasarela: 'wompi', wompi_transaction_id: transaccion.id, metodo: transaccion.payment_method_type, monto: transaccion.amount_in_cents / 100 },
+        datos: {
+          pasarela: 'wompi',
+          wompi_transaction_id: transaccion.id,
+          metodo: transaccion.payment_method_type,
+          monto: transaccion.amount_in_cents / 100,
+        },
+      });
+
+      const { data: pedidoCompleto } = await supabase.from('pedidos').select('cliente_id, total').eq('id', pedidoId).single();
+      await supabase.from('eventos_analytics').insert({
+        nombre: 'compra_completada',
+        propiedades: { pedido_id: pedidoId, total: pedidoCompleto?.total, pasarela: 'wompi' },
+        usuario_id: pedidoCompleto?.cliente_id || null,
       });
     } else if (['DECLINED', 'ERROR', 'VOIDED'].includes(transaccion.status)) {
       await supabase.from('eventos_log').insert({

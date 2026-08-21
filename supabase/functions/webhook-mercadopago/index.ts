@@ -57,6 +57,13 @@ Deno.serve(async (req) => {
         accion: 'pago_aprobado',
         datos: { mercadopago_payment_id: paymentId, monto: pago.transaction_amount },
       });
+
+      const { data: pedidoCompleto } = await supabase.from('pedidos').select('cliente_id, total').eq('id', pedidoId).single();
+      await supabase.from('eventos_analytics').insert({
+        nombre: 'compra_completada',
+        propiedades: { pedido_id: pedidoId, total: pedidoCompleto?.total, pasarela: 'mercadopago' },
+        usuario_id: pedidoCompleto?.cliente_id || null,
+      });
     } else if (pago.status === 'rejected') {
       await supabase.from('eventos_log').insert({
         entidad: 'pedido',

@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { Mail, Lock, User, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabaseClient';
+import { registrarEvento } from '../lib/analytics';
 
 // Migrado desde: "Ingreso Cumbo.dc.html"
 // Cambio clave respecto al prototipo: la sesión ya NO se guarda en
@@ -76,6 +77,7 @@ export default function Ingreso() {
         if (errSignUp) throw errSignUp;
 
         agregarLog(`Cuenta creada para ${correo}.`);
+        registrarEvento('cuenta_creada', { metodo: 'correo' });
       } else {
         const { error: errLogin } = await supabase.auth.signInWithPassword({
           email: correo,
@@ -83,6 +85,7 @@ export default function Ingreso() {
         });
         if (errLogin) throw errLogin;
         agregarLog(`Inicio de sesión de ${correo}.`);
+        registrarEvento('sesion_iniciada', { metodo: 'correo' });
       }
 
       setExito(true);

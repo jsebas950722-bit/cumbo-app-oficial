@@ -110,6 +110,7 @@ export default function PanelCumbo() {
           { id: 'conciliacion', label: 'Conciliación de pagos' },
           { id: 'inventario', label: 'Inventario' },
           { id: 'pergamino', label: 'Compras Pergamino' },
+          { id: 'analytics', label: 'Analytics' },
         ].map((t) => (
           <button
             key={t.id}
@@ -144,6 +145,7 @@ export default function PanelCumbo() {
         {tab === 'conciliacion' && <TabConciliacion />}
         {tab === 'inventario' && <TabInventario />}
         {tab === 'pergamino' && <TabPergamino fincaPreseleccionada={searchParams.get('finca')} />}
+        {tab === 'analytics' && <TabAnalytics />}
       </div>
     </div>
   );
@@ -2213,6 +2215,111 @@ function TabOperacion({ irA }) {
 
       <p style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', textAlign: 'center', marginTop: 16 }}>
         Cada número es real y en vivo — tocá cualquier tarjeta para ir directo a esa sección.
+      </p>
+    </div>
+  );
+}
+
+// ================= ANALYTICS (embudo real de uso) =================
+// Cierra el punto 3 del plan de marketing: eventos definidos junto
+// con Sebastián (compra_completada, uso_sommelier, y el resto del
+// embudo), instrumentados en el código real (Ingreso, Sommelier,
+// Marketplace, y los webhooks de pago para compra_completada, que se
+// confirma ahí y no en el frontend).
+
+const EVENTOS_EMBUDO = [
+  { nombre: 'cuenta_creada', etiqueta: 'Cuentas creadas' },
+  { nombre: 'sesion_iniciada', etiqueta: 'Inicios de sesión' },
+  { nombre: 'uso_sommelier', etiqueta: 'Usos del Sommelier' },
+  { nombre: 'producto_agregado_carrito', etiqueta: 'Productos agregados al carrito' },
+  { nombre: 'checkout_iniciado', etiqueta: 'Checkouts iniciados' },
+  { nombre: 'compra_completada', etiqueta: 'Compras completadas' },
+  { nombre: 'pago_fallido', etiqueta: 'Pagos fallidos' },
+];
+
+function TabAnalytics() {
+  const [conteos, setConteos] = useState(null);
+  const [dias, setDias] = useState(30);
+  const [cargando, setCargando] = useState(true);
+
+  useEffect(() => {
+    cargar();
+  }, [dias]);
+
+  async function cargar() {
+    setCargando(true);
+    const desde = new Date(Date.now() - dias * 86400000).toISOString();
+    const resultados = await Promise.all(
+      EVENTOS_EMBUDO.map((e) =>
+        supabase.from('eventos_analytics').select('*', { count: 'exact', head: true }).eq('nombre', e.nombre).gte('fecha', desde)
+      )
+    );
+    setConteos(resultados.map((r) => r.count || 0));
+    setCargando(false);
+  }
+
+  if (cargando || !conteos) return <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>;
+
+  const max = Math.max(...conteos, 1);
+  const compras = conteos[5];
+  const checkouts = conteos[4];
+  const tasaConversion = checkouts > 0 ? Math.round((compras / checkouts) * 100) : null;
+
+  return (
+    <div>
+      <div style={{ display: 'flex', gap: 8, marginBottom: 14 }}>
+        {[7, 30, 90].map((d) => (
+          <button
+            key={d}
+            onClick={() => setDias(d)}
+            style={{
+              flex: 1,
+              border: 'none',
+              borderRadius: 9999,
+              padding: '8px 6px',
+              fontSize: 12,
+              fontWeight: 'bold',
+              cursor: 'pointer',
+              background: dias === d ? 'var(--accion)' : 'var(--superficie)',
+              color: dias === d ? '#fff' : 'var(--cafe-oscuro)',
+            }}
+          >
+            {d} días
+          </button>
+        ))}
+      </div>
+
+      {tasaConversion !== null && (
+        <div style={{ background: 'var(--accion-suave)', borderRadius: 14, padding: '12px 16px', marginBottom: 14 }}>
+          <div style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)' }}>Tasa de conversión (checkout → compra)</div>
+          <div style={{ fontSize: 24, fontWeight: 'bold', color: 'var(--marron-tinta)' }}>{tasaConversion}%</div>
+        </div>
+      )}
+
+      <div style={{ background: 'var(--superficie)', borderRadius: 16, padding: 16 }}>
+        {EVENTOS_EMBUDO.map((e, i) => (
+          <div key={e.nombre} style={{ marginBottom: 14 }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 4 }}>
+              <span style={{ color: 'var(--marron-tinta)' }}>{e.etiqueta}</span>
+              <span style={{ fontWeight: 'bold', color: 'var(--marron-tinta)' }}>{conteos[i]}</span>
+            </div>
+            <div style={{ height: 8, borderRadius: 999, background: 'var(--fondo-calido)', overflow: 'hidden' }}>
+              <div
+                style={{
+                  height: '100%',
+                  width: `${(conteos[i] / max) * 100}%`,
+                  background: e.nombre === 'pago_fallido' ? 'var(--canela-oscuro)' : 'var(--accion)',
+                  transition: 'width .3s',
+                }}
+              />
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <p style={{ fontSize: 10.5, color: 'var(--cafe-oscuro)', textAlign: 'center', marginTop: 12 }}>
+        Eventos reales, instrumentados en el código — no estimaciones. Ver docs/PROPUESTA_VALOR_BUYER_PERSONA.md para el porqué de cada
+        evento.
       </p>
     </div>
   );
