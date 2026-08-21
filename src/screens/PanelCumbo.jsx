@@ -111,6 +111,7 @@ export default function PanelCumbo() {
           { id: 'inventario', label: 'Inventario' },
           { id: 'pergamino', label: 'Compras Pergamino' },
           { id: 'analytics', label: 'Analytics' },
+          { id: 'contabilidad', label: 'Contabilidad' },
         ].map((t) => (
           <button
             key={t.id}
@@ -146,6 +147,7 @@ export default function PanelCumbo() {
         {tab === 'inventario' && <TabInventario />}
         {tab === 'pergamino' && <TabPergamino fincaPreseleccionada={searchParams.get('finca')} />}
         {tab === 'analytics' && <TabAnalytics />}
+        {tab === 'contabilidad' && <TabContabilidad />}
       </div>
     </div>
   );
@@ -2321,6 +2323,283 @@ function TabAnalytics() {
         Eventos reales, instrumentados en el código — no estimaciones. Ver docs/PROPUESTA_VALOR_BUYER_PERSONA.md para el porqué de cada
         evento.
       </p>
+    </div>
+  );
+}
+
+// ================= CONTABILIDAD (aplicando el curso de Sebastián) =================
+// Estado de Resultados: la parte de ingresos y costo de pergamino se
+// calcula SOLA con datos reales de la base de datos — la app nunca
+// inventa un número. Gastos operativos, otros ingresos/egresos NO se
+// pueden calcular (arriendo, servicios, personal no se rastrean en
+// la app) — esos los carga el CEO a mano, una vez por período, y
+// quedan guardados para no perderlos.
+
+const PREGUNTAS_AUTOEVALUACION = [
+  '¿Registrás todas tus ventas y gastos?',
+  '¿Llevás libros contables (diario o mayor)?',
+  '¿Presentás estados financieros periódicamente?',
+  '¿Hacés conciliaciones bancarias cada mes?',
+  '¿Tenés un plan de cuentas claro y estructurado?',
+  '¿Registrás correctamente ingresos y gastos?',
+  '¿Cumplís con normas fiscales y contables?',
+  '¿Has hecho alguna auditoría o revisión contable?',
+  '¿Llevás control de lo que te deben y lo que debés?',
+  '¿Emitís factura legal por cada venta?',
+];
+
+function TabContabilidad() {
+  const [periodo, setPeriodo] = useState(new Date().toISOString().slice(0, 7));
+  const [ingresos, setIngresos] = useState(0);
+  const [costoPergamino, setCostoPergamino] = useState(0);
+  const [cuentasPorPagar, setCuentasPorPagar] = useState(0);
+  const [gastosOperativos, setGastosOperativos] = useState('0');
+  const [otrosIngresos, setOtrosIngresos] = useState('0');
+  const [otrosEgresos, setOtrosEgresos] = useState('0');
+  const [notas, setNotas] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [cargando, setCargando] = useState(true);
+  const [respuestasAuto, setRespuestasAuto] = useState(Array(10).fill(false));
+  const [ultimaAuto, setUltimaAuto] = useState(null);
+
+  useEffect(() => {
+    cargar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [periodo]);
+
+  async function cargar() {
+    setCargando(true);
+    const inicio = `${periodo}-01`;
+    const finDate = new Date(inicio);
+    finDate.setMonth(finDate.getMonth() + 1);
+    const fin = finDate.toISOString().slice(0, 10);
+
+    const [{ data: pedidosPeriodo }, { data: comprasPeriodo }, { data: comprasPendientes }, { data: finanzas }, { data: autoeval }] =
+      await Promise.all([
+        supabase.from('pedidos').select('total').eq('pago_confirmado', true).gte('fecha', inicio).lt('fecha', fin),
+        supabase.from('compras_pergamino').select('total_pagado').gte('fecha_compra', inicio).lt('fecha_compra', fin),
+        supabase.from('compras_pergamino').select('total_pagado').eq('estado_pago', 'pendiente'),
+        supabase.from('finanzas_periodo').select('*').eq('periodo', periodo).maybeSingle(),
+        supabase.from('autoevaluacion_contable').select('*').order('fecha', { ascending: false }).limit(1).maybeSingle(),
+      ]);
+
+    setIngresos((pedidosPeriodo || []).reduce((acc, p) => acc + Number(p.total), 0));
+    setCostoPergamino((comprasPeriodo || []).reduce((acc, c) => acc + Number(c.total_pagado), 0));
+    setCuentasPorPagar((comprasPendientes || []).reduce((acc, c) => acc + Number(c.total_pagado), 0));
+    setGastosOperativos(String(finanzas?.gastos_operativos ?? 0));
+    setOtrosIngresos(String(finanzas?.otros_ingresos ?? 0));
+    setOtrosEgresos(String(finanzas?.otros_egresos ?? 0));
+    setNotas(finanzas?.notas || '');
+    setUltimaAuto(autoeval || null);
+    setCargando(false);
+  }
+
+  async function guardar() {
+    setGuardando(true);
+    await supabase.from('finanzas_periodo').upsert(
+      {
+        periodo,
+        gastos_operativos: parseFloat(gastosOperativos) || 0,
+        otros_ingresos: parseFloat(otrosIngresos) || 0,
+        otros_egresos: parseFloat(otrosEgresos) || 0,
+        notas: notas || null,
+        actualizado_en: new Date().toISOString(),
+      },
+      { onConflict: 'periodo' }
+    );
+    setGuardando(false);
+  }
+
+  async function enviarAutoevaluacion() {
+    const puntaje = Math.round((respuestasAuto.filter(Boolean).length / 10) * 100);
+    await supabase.from('autoevaluacion_contable').insert({ respuestas: respuestasAuto, puntaje });
+    setUltimaAuto({ respuestas: respuestasAuto, puntaje, fecha: new Date().toISOString() });
+  }
+
+  if (cargando) return <p style={{ fontSize: 13, color: 'var(--cafe-oscuro)', textAlign: 'center', padding: 20 }}>Cargando…</p>;
+
+  const utilidadBruta = ingresos - costoPergamino;
+  const utilidadOperativa = utilidadBruta - (parseFloat(gastosOperativos) || 0);
+  const utilidadNeta = utilidadOperativa + (parseFloat(otrosIngresos) || 0) - (parseFloat(otrosEgresos) || 0);
+
+  const fila = (etiqueta, valor, bold, positivo) => (
+    <div
+      style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        padding: '7px 0',
+        fontSize: bold ? 13.5 : 12.5,
+        fontWeight: bold ? 'bold' : 'normal',
+        borderTop: bold ? '1px solid var(--fondo-calido)' : 'none',
+      }}
+    >
+      <span style={{ color: 'var(--marron-tinta)' }}>{etiqueta}</span>
+      <span style={{ color: positivo === false ? 'var(--canela-oscuro)' : 'var(--marron-tinta)' }}>{formatoCOP(valor)}</span>
+    </div>
+  );
+
+  return (
+    <div>
+      <p style={{ fontSize: 11.5, color: 'var(--cafe-oscuro)', marginBottom: 12 }}>
+        Ingresos y costo de pergamino se calculan solos con datos reales — nunca inventados. Gastos operativos y otros ingresos/egresos los
+        cargás vos, porque la app no rastrea arriendo, servicios ni personal.
+      </p>
+
+      <input
+        type="month"
+        value={periodo}
+        onChange={(e) => setPeriodo(e.target.value)}
+        style={{
+          width: '100%',
+          border: '1px solid rgba(146,97,55,0.25)',
+          borderRadius: 10,
+          padding: '8px 10px',
+          fontSize: 12.5,
+          marginBottom: 14,
+        }}
+      />
+
+      <div style={{ background: 'var(--superficie)', borderRadius: 16, padding: 16, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)', marginBottom: 8 }}>Estado de Resultados</div>
+        {fila('Ingresos operacionales (real)', ingresos)}
+        {fila('Costo de compra de pergamino (real)', -costoPergamino)}
+        {fila('Utilidad bruta', utilidadBruta, true)}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', fontSize: 12.5 }}>
+          <label style={{ flex: 1, color: 'var(--cafe-oscuro)' }}>Gastos operativos (arriendo, servicios, personal…)</label>
+          <input
+            type="number"
+            value={gastosOperativos}
+            onChange={(e) => setGastosOperativos(e.target.value)}
+            style={{
+              width: 110,
+              border: '1px solid rgba(146,97,55,0.25)',
+              borderRadius: 8,
+              padding: '5px 8px',
+              fontSize: 12.5,
+              textAlign: 'right',
+            }}
+          />
+        </div>
+        {fila('Utilidad operativa', utilidadOperativa, true)}
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12.5 }}>
+          <label style={{ flex: 1, color: 'var(--cafe-oscuro)' }}>Otros ingresos</label>
+          <input
+            type="number"
+            value={otrosIngresos}
+            onChange={(e) => setOtrosIngresos(e.target.value)}
+            style={{
+              width: 110,
+              border: '1px solid rgba(146,97,55,0.25)',
+              borderRadius: 8,
+              padding: '5px 8px',
+              fontSize: 12.5,
+              textAlign: 'right',
+            }}
+          />
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 0', fontSize: 12.5 }}>
+          <label style={{ flex: 1, color: 'var(--cafe-oscuro)' }}>Otros egresos</label>
+          <input
+            type="number"
+            value={otrosEgresos}
+            onChange={(e) => setOtrosEgresos(e.target.value)}
+            style={{
+              width: 110,
+              border: '1px solid rgba(146,97,55,0.25)',
+              borderRadius: 8,
+              padding: '5px 8px',
+              fontSize: 12.5,
+              textAlign: 'right',
+            }}
+          />
+        </div>
+        {fila('Utilidad neta', utilidadNeta, true, utilidadNeta >= 0)}
+
+        <textarea
+          value={notas}
+          onChange={(e) => setNotas(e.target.value)}
+          placeholder="Notas de este período (opcional)"
+          style={{
+            width: '100%',
+            border: '1px solid rgba(146,97,55,0.25)',
+            borderRadius: 10,
+            padding: 8,
+            fontSize: 12,
+            marginTop: 10,
+            minHeight: 44,
+          }}
+        />
+        <button
+          onClick={guardar}
+          disabled={guardando}
+          style={{
+            width: '100%',
+            marginTop: 10,
+            background: 'var(--accion)',
+            color: '#fff',
+            border: 'none',
+            padding: 10,
+            borderRadius: 9999,
+            fontSize: 12.5,
+            fontWeight: 'bold',
+            cursor: 'pointer',
+            opacity: guardando ? 0.6 : 1,
+          }}
+        >
+          {guardando ? 'Guardando…' : 'Guardar este período'}
+        </button>
+      </div>
+
+      <div style={{ background: 'var(--superficie)', borderRadius: 16, padding: 16, marginBottom: 14 }}>
+        <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)', marginBottom: 6 }}>
+          Cuentas por pagar a caficultores
+        </div>
+        <div style={{ fontSize: 20, fontWeight: 'bold', color: 'var(--canela-oscuro)' }}>{formatoCOP(cuentasPorPagar)}</div>
+        <div style={{ fontSize: 11, color: 'var(--cafe-oscuro)' }}>
+          Suma de despachos de pergamino sin pagar todavía (dato real, no depende del período elegido)
+        </div>
+      </div>
+
+      <div style={{ background: 'var(--superficie)', borderRadius: 16, padding: 16 }}>
+        <div style={{ fontSize: 13, fontWeight: 'bold', color: 'var(--marron-tinta)', marginBottom: 8 }}>Autoevaluación contable</div>
+        {ultimaAuto && (
+          <div style={{ fontSize: 12, color: 'var(--cafe-oscuro)', marginBottom: 10 }}>
+            Última: <strong>{ultimaAuto.puntaje}/100</strong> ({new Date(ultimaAuto.fecha).toLocaleDateString('es-CO')})
+          </div>
+        )}
+        {PREGUNTAS_AUTOEVALUACION.map((p, i) => (
+          <label
+            key={i}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, color: 'var(--marron-tinta)', marginBottom: 6 }}
+          >
+            <input
+              type="checkbox"
+              checked={respuestasAuto[i]}
+              onChange={(e) => setRespuestasAuto((prev) => prev.map((v, idx) => (idx === i ? e.target.checked : v)))}
+            />
+            {p}
+          </label>
+        ))}
+        <button
+          onClick={enviarAutoevaluacion}
+          style={{
+            width: '100%',
+            marginTop: 8,
+            background: 'none',
+            border: '1px solid rgba(146,97,55,0.25)',
+            borderRadius: 9999,
+            padding: 9,
+            fontSize: 12,
+            fontWeight: 'bold',
+            color: 'var(--marron-tinta)',
+            cursor: 'pointer',
+          }}
+        >
+          Guardar autoevaluación ({Math.round((respuestasAuto.filter(Boolean).length / 10) * 100)}/100)
+        </button>
+      </div>
     </div>
   );
 }

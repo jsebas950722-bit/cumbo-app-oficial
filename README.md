@@ -777,6 +777,38 @@ falta:
    recomendado) — confirmación de pedidos, notificaciones de validación
    de finca, etc.
 
+## Contabilidad básica (aplicando el curso que compartió Sebastián)
+
+Sebastián compartió un video/curso de contabilidad para emprendedores
+(estado de resultados, balance general, autoevaluación de 10
+preguntas). Se aplicó lo que la app puede hacer honestamente con datos
+reales — y se dejó explícito lo que no puede.
+
+**Panel Cumbo → Contabilidad:**
+
+- **Estado de Resultados**, por período (mes):
+  - Ingresos operacionales — **real**, suma de `pedidos.total` con
+    pago confirmado en ese mes.
+  - Costo de compra de pergamino — **real**, suma de
+    `compras_pergamino.total_pagado` en ese mes.
+  - Utilidad bruta — calculada.
+  - Gastos operativos — **campo manual**, porque la app no rastrea
+    arriendo, servicios ni personal. Se guarda por período en
+    `finanzas_periodo`, no se pierde cada vez.
+  - Otros ingresos/egresos — también manuales.
+  - Utilidad operativa y neta — calculadas.
+- **Cuentas por pagar a caficultores** — real, suma de despachos de
+  pergamino con `estado_pago = 'pendiente'` (no depende del período
+  elegido, es un saldo corriente).
+- **Autoevaluación contable** — las mismas 10 preguntas del curso,
+  guardadas con fecha y puntaje para poder repetirla y ver si mejora.
+
+**Lo que esto NO hace (siendo honesto sobre el alcance):** no arma un
+Balance General completo — eso necesitaría datos que la app
+simplemente no tiene manera de conocer (efectivo real en banco,
+equipos, préstamos, capital aportado por socios). Inventar esos
+números sería peor que no mostrarlos.
+
 ## Analytics: el embudo real de uso (punto 3 del plan de marketing)
 
 Cierra el plan acordado con Sebastián: perfil de cliente → propuesta
